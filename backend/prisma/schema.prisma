@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Kategori {
+  id           Int           @id @default(autoincrement())
+  nama         String
+  deskripsi    String?
+  icon         String?
+  subKategoris SubKategori[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model SubKategori {
+  id           Int           @id @default(autoincrement())
+  nama         String
+  slug         String        @unique
+  deskripsi    String?
+  kategoriId   Int
+  kategori     Kategori      @relation(fields: [kategoriId], references: [id], onDelete: Cascade)
+  users        User[]
+  moduls       Modul[]
+  periodeTests PeriodeTest[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+// Tipe modul: KUPAS_TUNTAS (materi), JITU (quiz), DO_CHECK (koreksi), REKAPIN (rekap)
+model Modul {
+  id              Int              @id @default(autoincrement())
+  nama            String
+  tipe            String           @default("JITU") // KUPAS_TUNTAS, JITU, DO_CHECK, REKAPIN
+  deskripsi       String?
+  gradientFrom    String
+  gradientTo      String
+  icon            String?
+  durasi          Int              @default(30)
+  urutan          Int              @default(1) // Urutan tampil di halaman
+  // Scheduling untuk JITU
+  isScheduled     Boolean          @default(false) // Apakah jadwal aktif
+  jadwalMulai     DateTime?        // Waktu mulai bisa akses JITU
+  jadwalSelesai   DateTime?        // Waktu selesai akses JITU
+  // Scheduling untuk DO-CHECK
+  publishDoCheck  DateTime?        // Waktu publish kunci jawaban DO-CHECK
+  subKategoriId   Int
+  subKategori     SubKategori      @relation(fields: [subKategoriId], references: [id], onDelete: Cascade)
+  soals           Soal[]
+  materis         Materi[]
+  testSessions    TestSession[]
+  materiProgress  MateriProgress[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+// Konten materi untuk KUPAS TUNTAS
+model Materi {
+  id        Int      @id @default(autoincrement())
+  judul     String
+  konten    String   // HTML content untuk teks dan gambar
+  videoUrl  String?  // URL embed video (YouTube, dll)
+  pdfUrl    String?  // URL file PDF
+  urutan    Int      @default(1)
+  modulId   Int
+  modul     Modul    @relation(fields: [modulId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Track progress baca materi
+model MateriProgress {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modulId     Int
+  modul       Modul    @relation(fields: [modulId], references: [id], onDelete: Cascade)
+  isCompleted Boolean  @default(false)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, modulId])
+}
+
+model Soal {
+  id         Int       @id @default(autoincrement())
+  pertanyaan String
+  pembahasan String?   // Penjelasan jawaban untuk DO-CHECK
+  bobot      Int       @default(1)
+  modulId    Int
+  modul      Modul     @relation(fields: [modulId], references: [id], onDelete: Cascade)
+  opsis      Opsi[]
+  jawabans   Jawaban[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model Opsi {
+  id        Int      @id @default(autoincrement())
+  teks      String
+  isCorrect Boolean  @default(false)
+  soalId    Int
+  soal      Soal     @relation(fields: [soalId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id                    Int                    @id @default(autoincrement())
+  nip                   String                 @unique
+  password              String
+  nama                  String
+  email                 String?
+  posisi                String                 // Satpam, Office Boy, Driver, dll
+  kantorCabang          String?
+  kantorWilayah         String?                // Regional: Regional I, II, III, dst
+  subKategoriId         Int
+  subKategori           SubKategori            @relation(fields: [subKategoriId], references: [id])
+  testSessions          TestSession[]
+  materiProgress        MateriProgress[]
+  testSessionPeriodes   TestSessionPeriode[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+}
+
+model TestSession {
+  id          Int        @id @default(autoincrement())
+  userId      Int
+  user        User       @relation(fields: [userId], references: [id])
+  modulId     Int
+  modul       Modul      @relation(fields: [modulId], references: [id])
+  startTime   DateTime   @default(now())
+  endTime     DateTime?
+  isActive    Boolean    @default(true)
+  isCompleted Boolean    @default(false)
+  soalOrder   String
+  currentSoal Int        @default(0)
+  jawabans    Jawaban[]
+  hasilTest   HasilTest?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([userId, modulId, isActive])
+}
+
+model Jawaban {
+  id            Int         @id @default(autoincrement())
+  testSessionId Int
+  testSession   TestSession @relation(fields: [testSessionId], references: [id], onDelete: Cascade)
+  soalId        Int
+  soal          Soal        @relation(fields: [soalId], references: [id])
+  opsiId        Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([testSessionId, soalId])
+}
+
+model HasilTest {
+  id            Int         @id @default(autoincrement())
+  testSessionId Int         @unique
+  testSession   TestSession @relation(fields: [testSessionId], references: [id], onDelete: Cascade)
+  totalSoal     Int
+  benar         Int
+  salah         Int
+  skor          Float
+  createdAt     DateTime    @default(now())
+}
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  nama      String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Periode Test - jadwal test bulanan per sub-kategori
+model PeriodeTest {
+  id              Int           @id @default(autoincrement())
+  subKategoriId   Int
+  subKategori     SubKategori   @relation(fields: [subKategoriId], references: [id], onDelete: Cascade)
+  nama            String        // Contoh: "Januari 2025", "Februari 2025"
+  bulan           Int           // 1-12
+  tahun           Int           // 2025, 2026, dst
+  tanggal         DateTime?     // Tanggal pelaksanaan
+  jamMulai        DateTime?     // Jam mulai test
+  jamBerakhir     DateTime?     // Jam berakhir test
+  doCheckBerakhir DateTime?     // Kapan Do-Check berakhir (opsional)
+  status          String        @default("draft") // draft, terjadwal, aktif, docheck, selesai
+  soals           SoalPeriode[]
+  testSessions    TestSessionPeriode[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([subKategoriId, bulan, tahun])
+}
+
+// Soal untuk Periode Test (terpisah dari Soal lama untuk backward compatibility)
+model SoalPeriode {
+  id            Int           @id @default(autoincrement())
+  periodeTestId Int
+  periodeTest   PeriodeTest   @relation(fields: [periodeTestId], references: [id], onDelete: Cascade)
+  pertanyaan    String
+  opsiA         String
+  opsiB         String
+  opsiC         String
+  opsiD         String
+  jawabanBenar  String        // A, B, C, atau D
+  pembahasan    String?       // Penjelasan untuk Do-Check
+  urutan        Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+// Test Session untuk Periode Test
+model TestSessionPeriode {
+  id            Int           @id @default(autoincrement())
+  userId        Int
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periodeTestId Int
+  periodeTest   PeriodeTest   @relation(fields: [periodeTestId], references: [id], onDelete: Cascade)
+  startTime     DateTime      @default(now())
+  endTime       DateTime?
+  isCompleted   Boolean       @default(false)
+  jawabans      JawabanPeriode[]
+  hasilTest     HasilTestPeriode?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([userId, periodeTestId])
+}
+
+// Jawaban untuk Periode Test
+model JawabanPeriode {
+  id                    Int                  @id @default(autoincrement())
+  testSessionPeriodeId  Int
+  testSessionPeriode    TestSessionPeriode   @relation(fields: [testSessionPeriodeId], references: [id], onDelete: Cascade)
+  soalPeriodeId         Int
+  jawaban               String?              // A, B, C, D atau null jika belum dijawab
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@unique([testSessionPeriodeId, soalPeriodeId])
+}
+
+// Hasil Test untuk Periode Test
+model HasilTestPeriode {
+  id                    Int                  @id @default(autoincrement())
+  testSessionPeriodeId  Int                  @unique
+  testSessionPeriode    TestSessionPeriode   @relation(fields: [testSessionPeriodeId], references: [id], onDelete: Cascade)
+  totalSoal             Int
+  benar                 Int
+  salah                 Int
+  tidakDijawab          Int                  @default(0)
+  skor                  Float
+  createdAt             DateTime             @default(now())
+}
