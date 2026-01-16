@@ -68,7 +68,9 @@ await fastify.register(websocket, {
 })
 
 // Serve static files (frontend) in production
-const staticPath = path.join(__dirname, '..')
+// In production: serves from /frontend/dist (via git pull)
+// __dirname = /backend/src, so ../../frontend/dist
+const staticPath = path.join(__dirname, '../../frontend/dist')
 await fastify.register(fastifyStatic, {
   root: staticPath,
   prefix: '/',
