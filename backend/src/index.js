@@ -23,6 +23,8 @@ import userRoutes from './routes/user.js'
 import reportRoutes from './routes/report.js'
 import materiRoutes from './routes/materi.js'
 import periodeRoutes from './routes/periode.js'
+import lokasiRoutes from './routes/lokasi.js'
+import uploadRoutes from './routes/upload.js'
 
 // Import WebSocket handlers
 import { setupWebSocket } from './websocket/handlers.js'
@@ -54,7 +56,7 @@ await fastify.register(rateLimit, {
 
 await fastify.register(multipart, {
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB
+    fileSize: 500 * 1024 * 1024 // 500MB - no practical limit for uploads
   }
 })
 
@@ -71,6 +73,21 @@ await fastify.register(fastifyStatic, {
   root: staticPath,
   prefix: '/',
   decorateReply: false
+})
+
+// Serve uploaded files with custom headers for PDFs
+const uploadsPath = path.join(__dirname, '../uploads')
+await fastify.register(fastifyStatic, {
+  root: uploadsPath,
+  prefix: '/uploads/',
+  decorateReply: false,
+  setHeaders: (res, pathName) => {
+    // For PDF files, set inline disposition to prevent auto-download
+    if (pathName.endsWith('.pdf')) {
+      res.setHeader('Content-Disposition', 'inline')
+      res.setHeader('X-Content-Type-Options', 'nosniff')
+    }
+  }
 })
 
 // Serve index.html for SPA routes (must be after API routes)
@@ -114,6 +131,8 @@ fastify.register(userRoutes, { prefix: '/api/user' })
 fastify.register(reportRoutes, { prefix: '/api/report' })
 fastify.register(materiRoutes, { prefix: '/api/materi' })
 fastify.register(periodeRoutes, { prefix: '/api/periode' })
+fastify.register(lokasiRoutes, { prefix: '/api/lokasi' })
+fastify.register(uploadRoutes, { prefix: '/api/upload' })
 
 // Setup WebSocket
 setupWebSocket(fastify)

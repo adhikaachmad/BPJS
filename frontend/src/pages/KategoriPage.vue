@@ -15,7 +15,7 @@ const error = ref(null)
 // Login form
 const showLoginModal = ref(false)
 const selectedSubKategori = ref(null)
-const loginForm = ref({ nip: '', password: '' })
+const loginForm = ref({ npp: '', password: '' })
 const loginLoading = ref(false)
 const loginError = ref('')
 const showPassword = ref(false)
@@ -70,14 +70,14 @@ function openLoginModal(subKategori) {
 
   // Not logged in, show login modal
   selectedSubKategori.value = subKategori
-  loginForm.value = { nip: '', password: '' }
+  loginForm.value = { npp: '', password: '' }
   loginError.value = ''
   showLoginModal.value = true
 }
 
 async function handleLogin() {
-  if (!loginForm.value.nip || !loginForm.value.password) {
-    loginError.value = 'NIP dan password harus diisi'
+  if (!loginForm.value.npp || !loginForm.value.password) {
+    loginError.value = 'NPP dan password harus diisi'
     return
   }
 
@@ -86,7 +86,7 @@ async function handleLogin() {
 
   try {
     const success = await authStore.loginWithSubKategori(
-      loginForm.value.nip,
+      loginForm.value.npp,
       loginForm.value.password,
       selectedSubKategori.value.slug
     )
@@ -220,7 +220,7 @@ function closeModal() {
             </svg>
           </div>
           <h2 class="text-xl font-bold text-gray-800">Login {{ selectedSubKategori?.nama }}</h2>
-          <p class="text-gray-500 text-sm mt-1">Masukkan NIP dan password Anda</p>
+          <p class="text-gray-500 text-sm mt-1">Masukkan NPP dan password Anda</p>
         </div>
 
         <!-- Already logged in as different user -->
@@ -234,7 +234,7 @@ function closeModal() {
         <!-- Login Form -->
         <form v-if="!authStore.isAuthenticated || !userBelongsToThisCategory" @submit.prevent="handleLogin">
           <div class="mb-4">
-            <label class="block text-gray-700 text-sm font-medium mb-2">NIP</label>
+            <label class="block text-gray-700 text-sm font-medium mb-2">NPP</label>
             <div class="relative">
               <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -242,9 +242,9 @@ function closeModal() {
                 </svg>
               </div>
               <input
-                v-model="loginForm.nip"
+                v-model="loginForm.npp"
                 type="text"
-                placeholder="Masukkan NIP"
+                placeholder="Masukkan NPP"
                 class="input-field pl-10"
                 :disabled="loginLoading"
               />

@@ -54,13 +54,13 @@ export function calculateRemainingTime(startTime, durationMinutes) {
 }
 
 /**
- * Validate NIP format
- * @param {string} nip - NIP to validate
- * @returns {boolean} - Is valid NIP
+ * Validate NPP format
+ * @param {string} npp - NPP to validate
+ * @returns {boolean} - Is valid NPP
  */
-export function isValidNIP(nip) {
-  // NIP format: 12 digits
-  return /^\d{12,18}$/.test(nip)
+export function isValidNPP(npp) {
+  // NPP format: 12-18 digits (from vendor)
+  return /^\d{12,18}$/.test(npp)
 }
 
 /**

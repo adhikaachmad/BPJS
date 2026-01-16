@@ -110,21 +110,24 @@ model Opsi {
 }
 
 model User {
-  id                    Int                    @id @default(autoincrement())
-  nip                   String                 @unique
-  password              String
-  nama                  String
-  email                 String?
-  posisi                String                 // Satpam, Office Boy, Driver, dll
-  kantorCabang          String?
-  kantorWilayah         String?                // Regional: Regional I, II, III, dst
-  subKategoriId         Int
-  subKategori           SubKategori            @relation(fields: [subKategoriId], references: [id])
-  testSessions          TestSession[]
-  materiProgress        MateriProgress[]
-  testSessionPeriodes   TestSessionPeriode[]
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  id                      Int                      @id @default(autoincrement())
+  npp                     String                   @unique  // Nomor Pokok Pegawai (dari vendor)
+  password                String
+  nama                    String
+  email                   String?
+  vendor                  String?                  // Nama vendor (perusahaan outsourcing)
+  posisi                  String                   // Satpam, Office Boy, Driver, dll
+  kepwil                  String?                  // Kantor Wilayah (Provinsi)
+  kcKabupaten             String?                  // Kantor Cabang (Kabupaten/Kota)
+  kakabKabupaten          String?                  // Kantor Kabupaten (Kabupaten/Kota)
+  subKategoriId           Int
+  subKategori             SubKategori              @relation(fields: [subKategoriId], references: [id])
+  testSessions            TestSession[]
+  materiProgress          MateriProgress[]
+  materiProgressPeriodes  MateriProgressPeriode[]
+  testSessionPeriodes     TestSessionPeriode[]
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
 }
 
 model TestSession {
@@ -195,11 +198,44 @@ model PeriodeTest {
   doCheckBerakhir DateTime?     // Kapan Do-Check berakhir (opsional)
   status          String        @default("draft") // draft, terjadwal, aktif, docheck, selesai
   soals           SoalPeriode[]
+  materis         MateriPeriode[]
+  materiProgress  MateriProgressPeriode[]
   testSessions    TestSessionPeriode[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   @@unique([subKategoriId, bulan, tahun])
+}
+
+// Materi untuk Periode Test
+model MateriPeriode {
+  id            Int           @id @default(autoincrement())
+  periodeTestId Int
+  periodeTest   PeriodeTest   @relation(fields: [periodeTestId], references: [id], onDelete: Cascade)
+  judul         String
+  konten        String        // HTML content untuk teks
+  videoType     String?       // 'url' atau 'upload'
+  videoUrl      String?       // URL eksternal (YouTube, Vimeo, dll)
+  videoFile     String?       // Path file video yang diupload
+  pdfFile       String?       // Path file PDF yang diupload
+  urutan        Int           @default(1)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+// Progress baca materi per periode
+model MateriProgressPeriode {
+  id            Int           @id @default(autoincrement())
+  userId        Int
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periodeTestId Int
+  periodeTest   PeriodeTest   @relation(fields: [periodeTestId], references: [id], onDelete: Cascade)
+  isCompleted   Boolean       @default(false)
+  completedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([userId, periodeTestId])
 }
 
 // Soal untuk Periode Test (terpisah dari Soal lama untuk backward compatibility)

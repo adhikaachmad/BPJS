@@ -8,7 +8,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
-const nip = ref('')
+const npp = ref('')
 const password = ref('')
 const loading = ref(false)
 const loadingSubKategori = ref(true)
@@ -61,15 +61,15 @@ async function loadSubKategori() {
 }
 
 async function handleLogin() {
-  if (!nip.value || !password.value) {
-    errorMessage.value = 'NIP dan password tidak boleh kosong'
+  if (!npp.value || !password.value) {
+    errorMessage.value = 'NPP dan password tidak boleh kosong'
     return
   }
 
   loading.value = true
   errorMessage.value = ''
 
-  const success = await authStore.loginWithSubKategori(nip.value, password.value, slug.value)
+  const success = await authStore.loginWithSubKategori(npp.value, password.value, slug.value)
 
   if (success) {
     const redirect = route.query.redirect || '/'
@@ -115,10 +115,10 @@ onMounted(() => {
       <!-- Login Card -->
       <div class="bg-white rounded-2xl shadow-xl p-8">
         <form @submit.prevent="handleLogin">
-          <!-- NIP Input -->
+          <!-- NPP Input -->
           <div class="mb-5">
-            <label class="block text-gray-700 font-medium mb-2" for="nip">
-              Nomor Induk Pegawai (NIP)
+            <label class="block text-gray-700 font-medium mb-2" for="npp">
+              Nomor Pokok Pegawai (NPP)
             </label>
             <div class="relative">
               <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -127,10 +127,10 @@ onMounted(() => {
                 </svg>
               </div>
               <input
-                id="nip"
-                v-model="nip"
+                id="npp"
+                v-model="npp"
                 type="text"
-                placeholder="Masukkan NIP Anda"
+                placeholder="Masukkan NPP Anda"
                 class="input-field pl-12"
                 :disabled="loading"
                 autocomplete="username"

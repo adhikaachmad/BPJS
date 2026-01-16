@@ -52,7 +52,7 @@ async function handleLogout() {
             <div class="flex items-center space-x-3 ml-4 pl-4 border-l border-gray-200">
               <div class="text-right hidden sm:block">
                 <p class="text-sm font-medium text-gray-900">{{ authStore.user?.nama }}</p>
-                <p class="text-xs text-gray-500">{{ authStore.user?.nip }}</p>
+                <p class="text-xs text-gray-500">{{ authStore.user?.npp }}</p>
               </div>
               <button
                 @click="handleLogout"

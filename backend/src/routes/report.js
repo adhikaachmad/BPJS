@@ -4,12 +4,9 @@ import PDFDocument from 'pdfkit'
 export default async function reportRoutes(fastify, options) {
   const { prisma } = fastify
 
-  // Export results to Excel
-  fastify.get('/export/excel', {
-    preHandler: [fastify.authenticateAdmin]
-  }, async (request, reply) => {
-    const { kategoriId, subKategoriId, modulId, startDate, endDate } = request.query
-
+  // Helper function to build where clause with periode filter
+  function buildWhereClause(query) {
+    const { kategoriId, subKategoriId, modulId, periodeBulan, periodeTahun } = query
     const where = { isCompleted: true }
 
     if (modulId) {
@@ -20,11 +17,48 @@ export default async function reportRoutes(fastify, options) {
       where.modul = { subKategori: { kategoriId: parseInt(kategoriId) } }
     }
 
-    if (startDate || endDate) {
+    // Filter by periode (month and year)
+    if (periodeBulan || periodeTahun) {
       where.endTime = {}
-      if (startDate) where.endTime.gte = new Date(startDate)
-      if (endDate) where.endTime.lte = new Date(endDate)
+
+      if (periodeBulan && periodeTahun) {
+        // Filter by specific month and year
+        const year = parseInt(periodeTahun)
+        const month = parseInt(periodeBulan) - 1 // JavaScript months are 0-indexed
+        const startOfMonth = new Date(year, month, 1)
+        const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59)
+        where.endTime.gte = startOfMonth
+        where.endTime.lte = endOfMonth
+      } else if (periodeTahun) {
+        // Filter by year only
+        const year = parseInt(periodeTahun)
+        where.endTime.gte = new Date(year, 0, 1)
+        where.endTime.lte = new Date(year, 11, 31, 23, 59, 59)
+      } else if (periodeBulan) {
+        // Filter by month only (current year)
+        const year = new Date().getFullYear()
+        const month = parseInt(periodeBulan) - 1
+        where.endTime.gte = new Date(year, month, 1)
+        where.endTime.lte = new Date(year, month + 1, 0, 23, 59, 59)
+      }
     }
+
+    return where
+  }
+
+  // Helper to get month name
+  function getMonthName(month) {
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+    return months[month - 1] || ''
+  }
+
+  // Export results to Excel
+  fastify.get('/export/excel', {
+    preHandler: [fastify.authenticateAdmin]
+  }, async (request, reply) => {
+    const where = buildWhereClause(request.query)
+    const { periodeBulan, periodeTahun } = request.query
 
     const results = await prisma.testSession.findMany({
       where,
@@ -49,19 +83,23 @@ export default async function reportRoutes(fastify, options) {
 
     const worksheet = workbook.addWorksheet('Hasil Test')
 
-    // Header styling
+    // Header styling - Updated with new columns
     worksheet.columns = [
       { header: 'No', key: 'no', width: 5 },
-      { header: 'NIP', key: 'nip', width: 15 },
+      { header: 'NPP', key: 'npp', width: 15 },
       { header: 'Nama', key: 'nama', width: 25 },
-      { header: 'Kategori', key: 'kategori', width: 20 },
-      { header: 'Sub Kategori', key: 'subKategori', width: 20 },
+      { header: 'Vendor', key: 'vendor', width: 20 },
+      { header: 'Kepwil', key: 'kepwil', width: 20 },
+      { header: 'KC', key: 'kc', width: 20 },
+      { header: 'Kakab', key: 'kakab', width: 20 },
+      { header: 'Kategori', key: 'kategori', width: 15 },
+      { header: 'Sub Kategori', key: 'subKategori', width: 15 },
       { header: 'Modul', key: 'modul', width: 20 },
-      { header: 'Total Soal', key: 'totalSoal', width: 12 },
-      { header: 'Benar', key: 'benar', width: 10 },
-      { header: 'Salah', key: 'salah', width: 10 },
+      { header: 'Total Soal', key: 'totalSoal', width: 10 },
+      { header: 'Benar', key: 'benar', width: 8 },
+      { header: 'Salah', key: 'salah', width: 8 },
       { header: 'Skor', key: 'skor', width: 10 },
-      { header: 'Tanggal Test', key: 'tanggal', width: 20 }
+      { header: 'Tanggal Test', key: 'tanggal', width: 18 }
     ]
 
     // Style header
@@ -77,8 +115,12 @@ export default async function reportRoutes(fastify, options) {
     results.forEach((result, index) => {
       worksheet.addRow({
         no: index + 1,
-        nip: result.user.nip,
+        npp: result.user.npp,
         nama: result.user.nama,
+        vendor: result.user.vendor || '-',
+        kepwil: result.user.kepwil || '-',
+        kc: result.user.kcKabupaten || '-',
+        kakab: result.user.kakabKabupaten || '-',
         kategori: result.modul.subKategori.kategori.nama,
         subKategori: result.modul.subKategori.nama,
         modul: result.modul.nama,
@@ -95,17 +137,50 @@ export default async function reportRoutes(fastify, options) {
     const avgScore = results.reduce((acc, r) => acc + (r.hasilTest?.skor || 0), 0) / (totalTests || 1)
 
     worksheet.addRow({})
+
+    // Periode info
+    let periodeText = 'Semua Periode'
+    if (periodeBulan && periodeTahun) {
+      periodeText = `${getMonthName(parseInt(periodeBulan))} ${periodeTahun}`
+    } else if (periodeTahun) {
+      periodeText = `Tahun ${periodeTahun}`
+    } else if (periodeBulan) {
+      periodeText = `Bulan ${getMonthName(parseInt(periodeBulan))}`
+    }
+
     worksheet.addRow({
       no: '',
-      nip: 'TOTAL',
-      nama: `${totalTests} test`,
+      npp: 'PERIODE',
+      nama: periodeText,
+      vendor: '',
+      kepwil: '',
+      kc: '',
+      kakab: '',
       kategori: '',
       subKategori: '',
       modul: '',
       totalSoal: '',
       benar: '',
       salah: '',
-      skor: `Rata-rata: ${avgScore.toFixed(2)}`,
+      skor: '',
+      tanggal: ''
+    })
+
+    worksheet.addRow({
+      no: '',
+      npp: 'TOTAL',
+      nama: `${totalTests} test`,
+      vendor: '',
+      kepwil: '',
+      kc: '',
+      kakab: '',
+      kategori: '',
+      subKategori: '',
+      modul: '',
+      totalSoal: '',
+      benar: '',
+      salah: '',
+      skor: `Rata-rata: ${avgScore.toFixed(2)}%`,
       tanggal: ''
     })
 
@@ -122,23 +197,8 @@ export default async function reportRoutes(fastify, options) {
   fastify.get('/export/pdf', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
-    const { kategoriId, subKategoriId, modulId, startDate, endDate } = request.query
-
-    const where = { isCompleted: true }
-
-    if (modulId) {
-      where.modulId = parseInt(modulId)
-    } else if (subKategoriId) {
-      where.modul = { subKategoriId: parseInt(subKategoriId) }
-    } else if (kategoriId) {
-      where.modul = { subKategori: { kategoriId: parseInt(kategoriId) } }
-    }
-
-    if (startDate || endDate) {
-      where.endTime = {}
-      if (startDate) where.endTime.gte = new Date(startDate)
-      if (endDate) where.endTime.lte = new Date(endDate)
-    }
+    const where = buildWhereClause(request.query)
+    const { periodeBulan, periodeTahun } = request.query
 
     const results = await prisma.testSession.findMany({
       where,
@@ -157,61 +217,65 @@ export default async function reportRoutes(fastify, options) {
     })
 
     // Create PDF
-    const doc = new PDFDocument({ margin: 50, size: 'A4', layout: 'landscape' })
+    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' })
 
     const chunks = []
     doc.on('data', chunk => chunks.push(chunk))
 
     // Title
-    doc.fontSize(20).font('Helvetica-Bold').text('LAPORAN HASIL TEST KUESIONER', { align: 'center' })
-    doc.fontSize(14).font('Helvetica').text('BPJS Kesehatan', { align: 'center' })
-    doc.moveDown()
+    doc.fontSize(18).font('Helvetica-Bold').text('LAPORAN HASIL TEST KUESIONER', { align: 'center' })
+    doc.fontSize(12).font('Helvetica').text('BPJS Kesehatan', { align: 'center' })
+    doc.moveDown(0.5)
 
-    // Date range
-    let dateText = 'Periode: '
-    if (startDate && endDate) {
-      dateText += `${new Date(startDate).toLocaleDateString('id-ID')} - ${new Date(endDate).toLocaleDateString('id-ID')}`
-    } else {
-      dateText += 'Semua waktu'
+    // Periode info
+    let periodeText = 'Periode: Semua Waktu'
+    if (periodeBulan && periodeTahun) {
+      periodeText = `Periode: ${getMonthName(parseInt(periodeBulan))} ${periodeTahun}`
+    } else if (periodeTahun) {
+      periodeText = `Periode: Tahun ${periodeTahun}`
+    } else if (periodeBulan) {
+      periodeText = `Periode: Bulan ${getMonthName(parseInt(periodeBulan))}`
     }
-    doc.fontSize(10).text(dateText, { align: 'center' })
+    doc.fontSize(10).text(periodeText, { align: 'center' })
     doc.moveDown()
 
-    // Table header
-    const tableTop = doc.y + 10
-    const colWidths = [30, 80, 120, 80, 80, 80, 50, 40, 40, 50, 100]
-    const headers = ['No', 'NIP', 'Nama', 'Kategori', 'Sub Kategori', 'Modul', 'Total', 'Benar', 'Salah', 'Skor', 'Tanggal']
+    // Table header - Updated with new columns
+    const tableTop = doc.y + 5
+    const colWidths = [25, 60, 90, 70, 70, 70, 70, 60, 45, 35, 35, 45, 70]
+    const headers = ['No', 'NPP', 'Nama', 'Vendor', 'Kepwil', 'KC', 'Kakab', 'Sub Kat', 'Total', 'Benar', 'Salah', 'Skor', 'Tanggal']
 
-    let x = 50
-    doc.fontSize(9).font('Helvetica-Bold')
+    let x = 30
+    doc.fontSize(7).font('Helvetica-Bold')
 
     // Draw header background
-    doc.rect(50, tableTop - 5, 700, 20).fill('#00A650')
+    doc.rect(30, tableTop - 3, 785, 16).fill('#00A650')
     doc.fillColor('white')
 
     headers.forEach((header, i) => {
-      doc.text(header, x, tableTop, { width: colWidths[i], align: 'left' })
+      doc.text(header, x + 2, tableTop, { width: colWidths[i] - 4, align: 'left' })
       x += colWidths[i]
     })
 
     // Table rows
     doc.fillColor('black').font('Helvetica')
-    let rowY = tableTop + 25
+    let rowY = tableTop + 18
 
-    results.slice(0, 30).forEach((result, index) => { // Limit to 30 rows for PDF
-      if (rowY > 500) {
+    results.slice(0, 25).forEach((result, index) => { // Limit to 25 rows for PDF
+      if (rowY > 520) {
         doc.addPage()
         rowY = 50
       }
 
-      x = 50
+      x = 30
       const rowData = [
         (index + 1).toString(),
-        result.user.nip,
-        result.user.nama.substring(0, 20),
-        result.modul.subKategori.kategori.nama,
-        result.modul.subKategori.nama,
-        result.modul.nama,
+        result.user.npp,
+        (result.user.nama || '').substring(0, 15),
+        (result.user.vendor || '-').substring(0, 12),
+        (result.user.kepwil || '-').substring(0, 12),
+        (result.user.kcKabupaten || '-').substring(0, 12),
+        (result.user.kakabKabupaten || '-').substring(0, 12),
+        (result.modul.subKategori.nama || '').substring(0, 10),
         (result.hasilTest?.totalSoal || 0).toString(),
         (result.hasilTest?.benar || 0).toString(),
         (result.hasilTest?.salah || 0).toString(),
@@ -221,30 +285,34 @@ export default async function reportRoutes(fastify, options) {
 
       // Alternate row color
       if (index % 2 === 0) {
-        doc.rect(50, rowY - 3, 700, 15).fill('#f0f0f0')
+        doc.rect(30, rowY - 2, 785, 14).fill('#f5f5f5')
         doc.fillColor('black')
       }
 
       rowData.forEach((data, i) => {
-        doc.fontSize(8).text(data, x, rowY, { width: colWidths[i], align: 'left' })
+        doc.fontSize(7).text(data, x + 2, rowY, { width: colWidths[i] - 4, align: 'left' })
         x += colWidths[i]
       })
 
-      rowY += 18
+      rowY += 15
     })
 
     // Summary
-    doc.moveDown(2)
     const totalTests = results.length
     const avgScore = results.reduce((acc, r) => acc + (r.hasilTest?.skor || 0), 0) / (totalTests || 1)
 
-    doc.fontSize(10).font('Helvetica-Bold')
-    doc.text(`Total Test: ${totalTests}`, 50, rowY + 20)
-    doc.text(`Rata-rata Skor: ${avgScore.toFixed(2)}%`, 50, rowY + 35)
+    doc.fontSize(9).font('Helvetica-Bold')
+    doc.text(`Total Test: ${totalTests}`, 30, rowY + 15)
+    doc.text(`Rata-rata Skor: ${avgScore.toFixed(2)}%`, 30, rowY + 28)
+
+    if (results.length > 25) {
+      doc.fontSize(8).font('Helvetica').fillColor('gray')
+      doc.text(`* Menampilkan 25 dari ${results.length} data. Export Excel untuk data lengkap.`, 30, rowY + 45)
+    }
 
     // Footer
-    doc.fontSize(8).font('Helvetica')
-    doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 50, 550)
+    doc.fontSize(8).font('Helvetica').fillColor('black')
+    doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 30, 560)
 
     doc.end()
 

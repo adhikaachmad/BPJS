@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import api from '@/utils/api'
 import AdminLayout from '@/components/admin/AdminLayout.vue'
 
@@ -7,15 +7,52 @@ const results = ref([])
 const kategoris = ref([])
 const loading = ref(true)
 const pagination = ref({ page: 1, total: 0, totalPages: 0 })
+
+// Generate year options (2 years ahead + current year + 5 years back = 8 years total)
+const currentYear = new Date().getFullYear()
+const yearOptions = Array.from({ length: 8 }, (_, i) => currentYear + 2 - i)
+
+// Month options
+const monthOptions = [
+  { value: 1, label: 'Januari' },
+  { value: 2, label: 'Februari' },
+  { value: 3, label: 'Maret' },
+  { value: 4, label: 'April' },
+  { value: 5, label: 'Mei' },
+  { value: 6, label: 'Juni' },
+  { value: 7, label: 'Juli' },
+  { value: 8, label: 'Agustus' },
+  { value: 9, label: 'September' },
+  { value: 10, label: 'Oktober' },
+  { value: 11, label: 'November' },
+  { value: 12, label: 'Desember' }
+]
+
 const filters = ref({
   kategoriId: '',
   subKategoriId: '',
-  modulId: '',
-  startDate: '',
-  endDate: ''
+  periodeBulan: '',
+  periodeTahun: ''
 })
 const exporting = ref(false)
 const exportType = ref('')
+
+// Get sub kategoris based on selected kategori
+const availableSubKategoris = computed(() => {
+  if (!filters.value.kategoriId) {
+    // Return all sub kategoris from all kategoris
+    return kategoris.value.flatMap(k =>
+      k.subKategoris.map(s => ({ ...s, kategoriNama: k.nama }))
+    )
+  }
+  const kategori = kategoris.value.find(k => k.id === parseInt(filters.value.kategoriId))
+  return kategori?.subKategoris?.map(s => ({ ...s, kategoriNama: kategori.nama })) || []
+})
+
+// Reset subKategoriId when kategoriId changes
+watch(() => filters.value.kategoriId, () => {
+  filters.value.subKategoriId = ''
+})
 
 onMounted(async () => {
   await Promise.all([fetchKategoris(), fetchResults()])
@@ -51,7 +88,7 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  filters.value = { kategoriId: '', subKategoriId: '', modulId: '', startDate: '', endDate: '' }
+  filters.value = { kategoriId: '', subKategoriId: '', periodeBulan: '', periodeTahun: '' }
   applyFilters()
 }
 
@@ -120,6 +157,12 @@ function getScoreBg(skor) {
   if (skor >= 60) return 'bg-amber-50'
   return 'bg-red-50'
 }
+
+function formatPeriode(bulan, tahun) {
+  if (!bulan || !tahun) return '-'
+  const month = monthOptions.find(m => m.value === bulan)
+  return `${month?.label || bulan} ${tahun}`
+}
 </script>
 
 <template>
@@ -171,7 +214,8 @@ function getScoreBg(skor) {
             Reset Filter
           </button>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+          <!-- Kategori -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">Kategori</label>
             <select v-model="filters.kategoriId" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all bg-white">
@@ -181,14 +225,37 @@ function getScoreBg(skor) {
               </option>
             </select>
           </div>
+          <!-- Sub Kategori -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5">Tanggal Mulai</label>
-            <input v-model="filters.startDate" type="date" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all" />
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Sub Kategori</label>
+            <select v-model="filters.subKategoriId" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all bg-white">
+              <option value="">Semua Sub Kategori</option>
+              <option v-for="sub in availableSubKategoris" :key="sub.id" :value="sub.id">
+                {{ sub.nama }}
+              </option>
+            </select>
           </div>
+          <!-- Periode Bulan -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5">Tanggal Akhir</label>
-            <input v-model="filters.endDate" type="date" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all" />
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Periode Bulan</label>
+            <select v-model="filters.periodeBulan" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all bg-white">
+              <option value="">Semua Bulan</option>
+              <option v-for="month in monthOptions" :key="month.value" :value="month.value">
+                {{ month.label }}
+              </option>
+            </select>
           </div>
+          <!-- Periode Tahun -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Periode Tahun</label>
+            <select v-model="filters.periodeTahun" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all bg-white">
+              <option value="">Semua Tahun</option>
+              <option v-for="year in yearOptions" :key="year" :value="year">
+                {{ year }}
+              </option>
+            </select>
+          </div>
+          <!-- Apply Button -->
           <div class="lg:col-span-2 flex items-end">
             <button @click="applyFilters" class="w-full px-4 py-2.5 bg-gradient-to-r from-bpjs-500 to-bpjs-600 text-white rounded-xl font-medium shadow-lg shadow-bpjs-500/30 hover:shadow-xl transition-all">
               Terapkan Filter
@@ -208,74 +275,108 @@ function getScoreBg(skor) {
       <!-- Results Table -->
       <div v-else class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full">
+          <table class="w-full min-w-[1400px]">
             <thead>
               <tr class="bg-gray-50 border-b border-gray-100">
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kategori</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Modul</th>
-                <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">KUPAS TUNTAS</th>
-                <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Skor</th>
-                <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Benar/Total</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tanggal</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendor</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kepwil</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">KC</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kakab</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sub Kategori</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Modul</th>
+                <th class="px-4 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Materi</th>
+                <th class="px-4 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Skor</th>
+                <th class="px-4 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Benar</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Waktu</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-for="result in results" :key="result.id" class="hover:bg-gray-50 transition-colors">
-                <td class="px-6 py-4">
+                <!-- User Info -->
+                <td class="px-4 py-4">
                   <div class="flex items-center">
-                    <div class="w-10 h-10 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center mr-3">
-                      <span class="text-gray-600 font-bold text-sm">{{ result.user?.nama?.charAt(0) }}</span>
+                    <div class="w-9 h-9 bg-gradient-to-br from-bpjs-400 to-bpjs-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                      <span class="text-white font-bold text-sm">{{ result.user?.nama?.charAt(0) }}</span>
                     </div>
-                    <div>
-                      <p class="font-medium text-gray-900">{{ result.user?.nama }}</p>
-                      <p class="text-sm text-gray-500 font-mono">{{ result.user?.nip }}</p>
+                    <div class="min-w-0">
+                      <p class="font-medium text-gray-900 truncate">{{ result.user?.nama }}</p>
+                      <p class="text-xs text-gray-500 font-mono">{{ result.user?.npp }}</p>
                     </div>
                   </div>
                 </td>
-                <td class="px-6 py-4">
-                  <span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium">
-                    {{ result.modul?.subKategori?.kategori?.nama }}
+                <!-- Vendor -->
+                <td class="px-4 py-4">
+                  <span v-if="result.user?.vendor" class="inline-flex items-center px-2 py-1 rounded-lg bg-purple-50 text-purple-700 text-xs font-medium max-w-[100px] truncate" :title="result.user?.vendor">
+                    {{ result.user?.vendor }}
                   </span>
+                  <span v-else class="text-gray-400 text-sm">-</span>
                 </td>
-                <td class="px-6 py-4">
+                <!-- Kepwil -->
+                <td class="px-4 py-4">
+                  <span v-if="result.user?.kepwil" class="inline-flex items-center px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium max-w-[110px] truncate" :title="result.user?.kepwil">
+                    {{ result.user?.kepwil }}
+                  </span>
+                  <span v-else class="text-gray-400 text-sm">-</span>
+                </td>
+                <!-- KC -->
+                <td class="px-4 py-4">
+                  <span v-if="result.user?.kcKabupaten" class="inline-flex items-center px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium max-w-[110px] truncate" :title="result.user?.kcKabupaten">
+                    {{ result.user?.kcKabupaten }}
+                  </span>
+                  <span v-else class="text-gray-400 text-sm">-</span>
+                </td>
+                <!-- Kakab -->
+                <td class="px-4 py-4">
+                  <span v-if="result.user?.kakabKabupaten" class="inline-flex items-center px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-medium max-w-[110px] truncate" :title="result.user?.kakabKabupaten">
+                    {{ result.user?.kakabKabupaten }}
+                  </span>
+                  <span v-else class="text-gray-400 text-sm">-</span>
+                </td>
+                <!-- Sub Kategori -->
+                <td class="px-4 py-4">
+                  <p class="text-sm text-gray-900">{{ result.modul?.subKategori?.nama }}</p>
+                  <p class="text-xs text-gray-500">{{ result.modul?.subKategori?.kategori?.nama }}</p>
+                </td>
+                <!-- Modul -->
+                <td class="px-4 py-4">
                   <p class="text-sm text-gray-900 font-medium">{{ result.modul?.nama }}</p>
-                  <p class="text-xs text-gray-500">{{ result.modul?.subKategori?.nama }}</p>
                 </td>
-                <td class="px-6 py-4 text-center">
+                <!-- Materi Status -->
+                <td class="px-4 py-4 text-center">
                   <span
                     v-if="result.materiProgress?.isCompleted"
-                    class="inline-flex items-center px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 text-xs font-medium"
+                    class="inline-flex items-center px-2 py-1 rounded-lg bg-violet-100 text-violet-700 text-xs font-medium"
                   >
-                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
                     Selesai
                   </span>
                   <span
                     v-else
-                    class="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 text-xs font-medium"
+                    class="inline-flex items-center px-2 py-1 rounded-lg bg-gray-100 text-gray-500 text-xs font-medium"
                   >
-                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
                     Belum
                   </span>
                 </td>
-                <td class="px-6 py-4 text-center">
+                <!-- Skor -->
+                <td class="px-4 py-4 text-center">
                   <span
-                    class="inline-flex items-center px-3 py-1.5 rounded-xl text-sm font-bold"
+                    class="inline-flex items-center px-2.5 py-1 rounded-xl text-sm font-bold"
                     :class="[getScoreBg(result.hasilTest?.skor || 0), getScoreColor(result.hasilTest?.skor || 0)]"
                   >
                     {{ (result.hasilTest?.skor || 0).toFixed(1) }}%
                   </span>
                 </td>
-                <td class="px-6 py-4 text-center">
+                <!-- Benar/Total -->
+                <td class="px-4 py-4 text-center">
                   <span class="text-sm text-gray-600">
-                    {{ result.hasilTest?.benar }}/{{ result.hasilTest?.totalSoal }}
+                    {{ result.hasilTest?.benar || 0 }}/{{ result.hasilTest?.totalSoal || 0 }}
                   </span>
                 </td>
-                <td class="px-6 py-4">
+                <!-- Waktu -->
+                <td class="px-4 py-4">
                   <p class="text-sm text-gray-900">{{ new Date(result.endTime).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) }}</p>
                   <p class="text-xs text-gray-500">{{ new Date(result.endTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }}</p>
                 </td>

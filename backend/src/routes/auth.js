@@ -39,13 +39,13 @@ export default async function authRoutes(fastify, options) {
     return { subKategoris }
   })
 
-  // User login with NIP, password, and sub kategori slug
+  // User login with NPP, password, and sub kategori slug
   fastify.post('/login/:slug', async (request, reply) => {
     const { slug } = request.params
-    const { nip, password } = request.body
+    const { npp, password } = request.body
 
-    if (!nip || !password) {
-      return reply.status(400).send({ error: 'NIP dan password harus diisi' })
+    if (!npp || !password) {
+      return reply.status(400).send({ error: 'NPP dan password harus diisi' })
     }
 
     // Find sub kategori by slug
@@ -61,7 +61,7 @@ export default async function authRoutes(fastify, options) {
     }
 
     const user = await prisma.user.findUnique({
-      where: { nip },
+      where: { npp },
       include: {
         subKategori: {
           include: {
@@ -72,7 +72,7 @@ export default async function authRoutes(fastify, options) {
     })
 
     if (!user) {
-      return reply.status(401).send({ error: 'NIP tidak ditemukan' })
+      return reply.status(401).send({ error: 'NPP tidak ditemukan' })
     }
 
     // Verify password
@@ -101,7 +101,7 @@ export default async function authRoutes(fastify, options) {
 
     const token = fastify.jwt.sign({
       id: user.id,
-      nip: user.nip,
+      npp: user.npp,
       nama: user.nama,
       subKategoriId: user.subKategoriId,
       subKategoriSlug: user.subKategori.slug,
@@ -118,12 +118,13 @@ export default async function authRoutes(fastify, options) {
       token,
       user: {
         id: user.id,
-        nip: user.nip,
+        npp: user.npp,
         nama: user.nama,
         email: user.email,
         posisi: user.posisi,
-        kantorCabang: user.kantorCabang,
-        kantorWilayah: user.kantorWilayah,
+        kepwil: user.kepwil,
+        kcKabupaten: user.kcKabupaten,
+        kakabKabupaten: user.kakabKabupaten,
         subKategori: user.subKategori
       }
     }

@@ -32,39 +32,21 @@ const routes = [
     meta: { hideHeader: true, hideFooter: true }
   },
   {
-    path: '/modul/:modulId',
-    name: 'modul-detail',
-    component: () => import('@/pages/ModulDetailPage.vue'),
+    path: '/periode/:periodeId/materi',
+    name: 'materi-periode',
+    component: () => import('@/pages/MateriPeriodePage.vue'),
     meta: { requiresAuth: true }
   },
   {
-    path: '/quiz/:sessionId',
-    name: 'quiz',
-    component: () => import('@/pages/QuizPage.vue'),
+    path: '/periode/:periodeId/test',
+    name: 'test-periode',
+    component: () => import('@/pages/QuizPeriodePage.vue'),
     meta: { requiresAuth: true, hideHeader: true, hideFooter: true }
   },
   {
-    path: '/result/:sessionId',
-    name: 'result',
-    component: () => import('@/pages/ResultPage.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/materi/:modulId',
-    name: 'materi',
-    component: () => import('@/pages/MateriPage.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/docheck/:sessionId',
-    name: 'docheck',
-    component: () => import('@/pages/DoCheckPage.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/rekapin/:subKategoriId',
-    name: 'rekapin',
-    component: () => import('@/pages/RekapinPage.vue'),
+    path: '/periode/:periodeId/result',
+    name: 'result-periode',
+    component: () => import('@/pages/ResultPeriodePage.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -119,12 +101,6 @@ const routes = [
     path: '/admin/reports',
     name: 'admin-reports',
     component: () => import('@/pages/admin/ReportsPage.vue'),
-    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
-  },
-  {
-    path: '/admin/materi',
-    name: 'admin-materi',
-    component: () => import('@/pages/admin/MateriManagePage.vue'),
     meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
   },
   // Access Denied page

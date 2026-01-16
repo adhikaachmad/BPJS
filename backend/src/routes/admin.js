@@ -212,10 +212,11 @@ export default async function adminRoutes(fastify, options) {
 
         return {
           id: user.id,
-          nip: user.nip,
+          npp: user.npp,
           nama: user.nama,
           posisi: user.posisi,
-          kantorWilayah: user.kantorWilayah,
+          vendor: user.vendor,
+          kepwil: user.kepwil,
           subKategori: user.subKategori.nama,
           kategori: user.subKategori.kategori.nama,
           materiCompleted,
@@ -227,15 +228,15 @@ export default async function adminRoutes(fastify, options) {
 
     // Regional Analytics
     const regionals = await prisma.user.groupBy({
-      by: ['kantorWilayah'],
+      by: ['kepwil'],
       _count: { id: true }
     })
 
     // Users per regional
     const usersByRegional = regionals
-      .filter(r => r.kantorWilayah)
+      .filter(r => r.kepwil)
       .map(r => ({
-        nama: r.kantorWilayah,
+        nama: r.kepwil,
         total: r._count.id
       }))
       .sort((a, b) => a.nama.localeCompare(b.nama))
@@ -244,7 +245,7 @@ export default async function adminRoutes(fastify, options) {
     const regionalProgress = await Promise.all(
       usersByRegional.map(async (reg) => {
         const usersInRegional = await prisma.user.findMany({
-          where: { kantorWilayah: reg.nama },
+          where: { kepwil: reg.nama },
           select: { id: true, subKategoriId: true }
         })
 
@@ -290,7 +291,7 @@ export default async function adminRoutes(fastify, options) {
     const regionalScores = await Promise.all(
       usersByRegional.map(async (reg) => {
         const usersInRegional = await prisma.user.findMany({
-          where: { kantorWilayah: reg.nama },
+          where: { kepwil: reg.nama },
           select: { id: true }
         })
         const userIds = usersInRegional.map(u => u.id)

@@ -13,12 +13,12 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!token.value && !!user.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
 
-  async function login(nip) {
+  async function login(npp) {
     loading.value = true
     error.value = null
 
     try {
-      const response = await api.post('/auth/login', { nip })
+      const response = await api.post('/auth/login', { npp })
       token.value = response.data.token
       user.value = response.data.user
       localStorage.setItem('token', response.data.token)
@@ -31,12 +31,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function loginWithSubKategori(nip, password, slug) {
+  async function loginWithSubKategori(npp, password, slug) {
     loading.value = true
     error.value = null
 
     try {
-      const response = await api.post(`/auth/login/${slug}`, { nip, password })
+      const response = await api.post(`/auth/login/${slug}`, { npp, password })
       token.value = response.data.token
       user.value = response.data.user
       localStorage.setItem('token', response.data.token)

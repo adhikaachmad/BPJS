@@ -358,35 +358,35 @@ async function main() {
 
   const sampleUsers = [
     // TAD - Satpam
-    { nip: '199001010001', nama: 'Budi Santoso', posisi: 'Satpam', email: 'budi.santoso@bpjs.go.id', kantorCabang: 'KC Jakarta Pusat', kantorWilayah: 'Kanwil DKI Jakarta', subKategoriSlug: 'satpam' },
-    { nip: '199001010002', nama: 'Agus Setiawan', posisi: 'Satpam', email: 'agus.setiawan@bpjs.go.id', kantorCabang: 'KC Jakarta Selatan', kantorWilayah: 'Kanwil DKI Jakarta', subKategoriSlug: 'satpam' },
-    { nip: '199001010003', nama: 'Rudi Hartono', posisi: 'Satpam', email: 'rudi.hartono@bpjs.go.id', kantorCabang: 'KC Bandung', kantorWilayah: 'Kanwil Jawa Barat', subKategoriSlug: 'satpam' },
+    { npp: '199001010001', nama: 'Budi Santoso', posisi: 'Satpam', email: 'budi.santoso@bpjs.go.id', kcKabupaten: 'Kota Jakarta Pusat', kepwil: 'DKI Jakarta', subKategoriSlug: 'satpam' },
+    { npp: '199001010002', nama: 'Agus Setiawan', posisi: 'Satpam', email: 'agus.setiawan@bpjs.go.id', kcKabupaten: 'Kota Jakarta Selatan', kepwil: 'DKI Jakarta', subKategoriSlug: 'satpam' },
+    { npp: '199001010003', nama: 'Rudi Hartono', posisi: 'Satpam', email: 'rudi.hartono@bpjs.go.id', kcKabupaten: 'Kota Bandung', kepwil: 'Jawa Barat', subKategoriSlug: 'satpam' },
 
     // TAD - Office Boy
-    { nip: '199002020001', nama: 'Dedi Prasetyo', posisi: 'Office Boy', email: 'dedi.prasetyo@bpjs.go.id', kantorCabang: 'KC Jakarta Pusat', kantorWilayah: 'Kanwil DKI Jakarta', subKategoriSlug: 'office-boy' },
-    { nip: '199002020002', nama: 'Eko Wijaya', posisi: 'Office Boy', email: 'eko.wijaya@bpjs.go.id', kantorCabang: 'KC Surabaya', kantorWilayah: 'Kanwil Jawa Timur', subKategoriSlug: 'office-boy' },
+    { npp: '199002020001', nama: 'Dedi Prasetyo', posisi: 'Office Boy', email: 'dedi.prasetyo@bpjs.go.id', kcKabupaten: 'Kota Jakarta Pusat', kepwil: 'DKI Jakarta', subKategoriSlug: 'office-boy' },
+    { npp: '199002020002', nama: 'Eko Wijaya', posisi: 'Office Boy', email: 'eko.wijaya@bpjs.go.id', kcKabupaten: 'Kota Surabaya', kepwil: 'Jawa Timur', subKategoriSlug: 'office-boy' },
 
     // TAD - Driver
-    { nip: '199003030001', nama: 'Siti Rahayu', posisi: 'Driver', email: 'siti.rahayu@bpjs.go.id', kantorCabang: 'KC Jakarta Barat', kantorWilayah: 'Kanwil DKI Jakarta', subKategoriSlug: 'driver' },
-    { nip: '199003030002', nama: 'Joko Susilo', posisi: 'Driver', email: 'joko.susilo@bpjs.go.id', kantorCabang: 'KC Semarang', kantorWilayah: 'Kanwil Jawa Tengah', subKategoriSlug: 'driver' },
+    { npp: '199003030001', nama: 'Siti Rahayu', posisi: 'Driver', email: 'siti.rahayu@bpjs.go.id', kcKabupaten: 'Kota Jakarta Barat', kepwil: 'DKI Jakarta', subKategoriSlug: 'driver' },
+    { npp: '199003030002', nama: 'Joko Susilo', posisi: 'Driver', email: 'joko.susilo@bpjs.go.id', kcKabupaten: 'Kota Semarang', kepwil: 'Jawa Tengah', subKategoriSlug: 'driver' },
 
     // Pegawai - PATT
-    { nip: '199004040001', nama: 'Ahmad Fauzi', posisi: 'PATT', email: 'ahmad.fauzi@bpjs.go.id', kantorCabang: 'KC Jakarta Timur', kantorWilayah: 'Kanwil DKI Jakarta', subKategoriSlug: 'patt' },
-    { nip: '199004040002', nama: 'Fitri Handayani', posisi: 'PATT', email: 'fitri.handayani@bpjs.go.id', kantorCabang: 'KC Medan', kantorWilayah: 'Kanwil Sumatera Utara', subKategoriSlug: 'patt' },
+    { npp: '199004040001', nama: 'Ahmad Fauzi', posisi: 'PATT', email: 'ahmad.fauzi@bpjs.go.id', kcKabupaten: 'Kota Jakarta Timur', kepwil: 'DKI Jakarta', subKategoriSlug: 'patt' },
+    { npp: '199004040002', nama: 'Fitri Handayani', posisi: 'PATT', email: 'fitri.handayani@bpjs.go.id', kcKabupaten: 'Kota Medan', kepwil: 'Sumatera Utara', subKategoriSlug: 'patt' },
 
     // Pegawai - Pegawai Tetap
-    { nip: '199005050001', nama: 'Dewi Lestari', posisi: 'Pegawai Tetap', email: 'dewi.lestari@bpjs.go.id', kantorCabang: 'Kantor Pusat', kantorWilayah: 'Kantor Pusat', subKategoriSlug: 'pegawai-tetap' },
-    { nip: '199005050002', nama: 'Hendra Kusuma', posisi: 'Pegawai Tetap', email: 'hendra.kusuma@bpjs.go.id', kantorCabang: 'KC Yogyakarta', kantorWilayah: 'Kanwil DIY', subKategoriSlug: 'pegawai-tetap' },
+    { npp: '199005050001', nama: 'Dewi Lestari', posisi: 'Pegawai Tetap', email: 'dewi.lestari@bpjs.go.id', kcKabupaten: 'Kota Jakarta Pusat', kepwil: 'DKI Jakarta', subKategoriSlug: 'pegawai-tetap' },
+    { npp: '199005050002', nama: 'Hendra Kusuma', posisi: 'Pegawai Tetap', email: 'hendra.kusuma@bpjs.go.id', kcKabupaten: 'Kota Yogyakarta', kepwil: 'Daerah Istimewa Yogyakarta', subKategoriSlug: 'pegawai-tetap' },
 
     // Petugas Sentralisasi - Pandawa
-    { nip: '199006060001', nama: 'Rina Wulandari', posisi: 'Pandawa', email: 'rina.wulandari@bpjs.go.id', kantorCabang: 'KC Jakarta Utara', kantorWilayah: 'Kanwil DKI Jakarta', subKategoriSlug: 'pandawa' },
+    { npp: '199006060001', nama: 'Rina Wulandari', posisi: 'Pandawa', email: 'rina.wulandari@bpjs.go.id', kcKabupaten: 'Kota Jakarta Utara', kepwil: 'DKI Jakarta', subKategoriSlug: 'pandawa' },
 
     // Petugas Sentralisasi - Senada
-    { nip: '199007070001', nama: 'Hendra Wijaya', posisi: 'Senada', email: 'hendra.wijaya@bpjs.go.id', kantorCabang: 'KC Makassar', kantorWilayah: 'Kanwil Sulawesi Selatan', subKategoriSlug: 'senada' },
+    { npp: '199007070001', nama: 'Hendra Wijaya', posisi: 'Senada', email: 'hendra.wijaya@bpjs.go.id', kcKabupaten: 'Kota Makassar', kepwil: 'Sulawesi Selatan', subKategoriSlug: 'senada' },
 
     // Petugas Sentralisasi - CC165
-    { nip: '199008080001', nama: 'Maya Sari', posisi: 'CC165', email: 'maya.sari@bpjs.go.id', kantorCabang: 'Contact Center', kantorWilayah: 'Kantor Pusat', subKategoriSlug: 'cc165' },
-    { nip: '199008080002', nama: 'Novi Anggraini', posisi: 'CC165', email: 'novi.anggraini@bpjs.go.id', kantorCabang: 'Contact Center', kantorWilayah: 'Kantor Pusat', subKategoriSlug: 'cc165' }
+    { npp: '199008080001', nama: 'Maya Sari', posisi: 'CC165', email: 'maya.sari@bpjs.go.id', kcKabupaten: 'Kota Jakarta Pusat', kepwil: 'DKI Jakarta', subKategoriSlug: 'cc165' },
+    { npp: '199008080002', nama: 'Novi Anggraini', posisi: 'CC165', email: 'novi.anggraini@bpjs.go.id', kcKabupaten: 'Kota Jakarta Pusat', kepwil: 'DKI Jakarta', subKategoriSlug: 'cc165' }
   ]
 
   for (const userData of sampleUsers) {
@@ -396,16 +396,16 @@ async function main() {
 
     if (subKategori) {
       await prisma.user.upsert({
-        where: { nip: userData.nip },
+        where: { npp: userData.npp },
         update: {},
         create: {
-          nip: userData.nip,
+          npp: userData.npp,
           password: defaultPassword,
           nama: userData.nama,
           email: userData.email,
           posisi: userData.posisi,
-          kantorCabang: userData.kantorCabang,
-          kantorWilayah: userData.kantorWilayah,
+          kcKabupaten: userData.kcKabupaten,
+          kepwil: userData.kepwil,
           subKategoriId: subKategori.id
         }
       })

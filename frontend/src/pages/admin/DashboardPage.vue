@@ -70,16 +70,16 @@ const provinsiList = [
 const filters = ref({
   dateFrom: '',
   dateTo: '',
-  kantorWilayah: '',
-  kantorCabang: '',
+  kepwil: '',
+  kcKabupaten: '',
   posisi: ''
 })
 
 // Filter options (derived from data)
-const kantorCabangList = computed(() => {
+const kcKabupatenList = computed(() => {
   const cabangSet = new Set()
   usersWithProgress.value.forEach(u => {
-    if (u.kantorCabang) cabangSet.add(u.kantorCabang)
+    if (u.kcKabupaten) cabangSet.add(u.kcKabupaten)
   })
   return Array.from(cabangSet).sort()
 })
@@ -120,8 +120,8 @@ function resetFilters() {
   filters.value = {
     dateFrom: '',
     dateTo: '',
-    kantorWilayah: '',
-    kantorCabang: '',
+    kepwil: '',
+    kcKabupaten: '',
     posisi: ''
   }
   userPage.value = 1
@@ -131,14 +131,14 @@ function resetFilters() {
 const filteredUsers = computed(() => {
   let result = usersWithProgress.value
 
-  // Filter by Kantor Wilayah
-  if (filters.value.kantorWilayah) {
-    result = result.filter(u => u.kantorWilayah === filters.value.kantorWilayah)
+  // Filter by Kepwil (Kantor Wilayah)
+  if (filters.value.kepwil) {
+    result = result.filter(u => u.kepwil === filters.value.kepwil)
   }
 
-  // Filter by Kantor Cabang
-  if (filters.value.kantorCabang) {
-    result = result.filter(u => u.kantorCabang === filters.value.kantorCabang)
+  // Filter by KC Kabupaten (Kantor Cabang)
+  if (filters.value.kcKabupaten) {
+    result = result.filter(u => u.kcKabupaten === filters.value.kcKabupaten)
   }
 
   // Filter by Posisi
@@ -151,8 +151,8 @@ const filteredUsers = computed(() => {
     const search = userSearch.value.toLowerCase()
     result = result.filter(u =>
       u.nama.toLowerCase().includes(search) ||
-      u.nip.toLowerCase().includes(search) ||
-      (u.kantorWilayah && u.kantorWilayah.toLowerCase().includes(search))
+      u.npp.toLowerCase().includes(search) ||
+      (u.kepwil && u.kepwil.toLowerCase().includes(search))
     )
   }
 
@@ -259,7 +259,7 @@ const progressByProvinceData = computed(() => {
   const provinceStats = {}
 
   filteredUsers.value.forEach(u => {
-    const prov = u.kantorWilayah || 'Tidak Diketahui'
+    const prov = u.kepwil || 'Tidak Diketahui'
     if (!provinceStats[prov]) {
       provinceStats[prov] = { total: 0, materi: 0, test: 0 }
     }
@@ -334,7 +334,7 @@ const greeting = computed(() => {
 // Check if any filter is active
 const hasActiveFilters = computed(() => {
   return filters.value.dateFrom || filters.value.dateTo ||
-    filters.value.kantorWilayah || filters.value.kantorCabang || filters.value.posisi
+    filters.value.kepwil || filters.value.kcKabupaten || filters.value.posisi
 })
 
 // Province name mapping (Database name -> GeoJSON name)
@@ -415,7 +415,7 @@ const mapData = computed(() => {
 
   // Populate with user data
   usersWithProgress.value.forEach(user => {
-    const prov = user.kantorWilayah
+    const prov = user.kepwil
     if (prov && provinceData[prov]) {
       provinceData[prov].totalUsers++
       if (user.materiCompleted) provinceData[prov].materiCompleted++
@@ -665,11 +665,11 @@ function onMapClick(params) {
               />
             </div>
 
-            <!-- Kantor Wilayah -->
+            <!-- Kepwil (Kantor Wilayah) -->
             <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1.5">Kantor Wilayah</label>
+              <label class="block text-xs font-medium text-gray-500 mb-1.5">Kantor Wilayah (Kepwil)</label>
               <select
-                v-model="filters.kantorWilayah"
+                v-model="filters.kepwil"
                 class="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all bg-white"
               >
                 <option value="">Semua Wilayah</option>
@@ -677,15 +677,15 @@ function onMapClick(params) {
               </select>
             </div>
 
-            <!-- Kantor Cabang -->
+            <!-- KC Kabupaten (Kantor Cabang) -->
             <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1.5">Kantor Cabang</label>
+              <label class="block text-xs font-medium text-gray-500 mb-1.5">Kantor Cabang (KC)</label>
               <select
-                v-model="filters.kantorCabang"
+                v-model="filters.kcKabupaten"
                 class="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all bg-white"
               >
                 <option value="">Semua Cabang</option>
-                <option v-for="cabang in kantorCabangList" :key="cabang" :value="cabang">{{ cabang }}</option>
+                <option v-for="cabang in kcKabupatenList" :key="cabang" :value="cabang">{{ cabang }}</option>
               </select>
             </div>
 
@@ -792,7 +792,7 @@ function onMapClick(params) {
 
                   <!-- Filter by this province button -->
                   <button
-                    @click="filters.kantorWilayah = selectedProvince; selectedProvince = null"
+                    @click="filters.kepwil = selectedProvince; selectedProvince = null"
                     class="w-full py-2.5 bg-white text-bpjs-600 rounded-lg font-semibold text-sm hover:bg-white/90 transition-colors"
                   >
                     Filter Data Provinsi Ini
@@ -1005,7 +1005,7 @@ function onMapClick(params) {
                 <input
                   v-model="userSearch"
                   type="text"
-                  placeholder="Cari nama, NIP..."
+                  placeholder="Cari nama, NPP..."
                   class="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all w-full sm:w-64"
                 />
               </div>
@@ -1033,13 +1033,13 @@ function onMapClick(params) {
                       </div>
                       <div>
                         <p class="font-medium text-gray-900 text-sm">{{ user.nama }}</p>
-                        <p class="text-xs text-gray-500">{{ user.nip }}</p>
+                        <p class="text-xs text-gray-500">{{ user.npp }}</p>
                       </div>
                     </div>
                   </td>
                   <td class="px-6 py-4">
-                    <p class="text-sm text-gray-900">{{ user.kantorWilayah || '-' }}</p>
-                    <p class="text-xs text-gray-500">{{ user.kantorCabang || '' }}</p>
+                    <p class="text-sm text-gray-900">{{ user.kepwil || '-' }}</p>
+                    <p class="text-xs text-gray-500">{{ user.kcKabupaten || '' }}</p>
                   </td>
                   <td class="px-6 py-4">
                     <span class="inline-flex items-center px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium">
