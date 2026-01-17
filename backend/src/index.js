@@ -25,6 +25,7 @@ import materiRoutes from './routes/materi.js'
 import periodeRoutes from './routes/periode.js'
 import lokasiRoutes from './routes/lokasi.js'
 import uploadRoutes from './routes/upload.js'
+import stepConfigRoutes from './routes/step-config.js'
 
 // Import WebSocket handlers
 import { setupWebSocket } from './websocket/handlers.js'
@@ -68,9 +69,8 @@ await fastify.register(websocket, {
 })
 
 // Serve static files (frontend) in production
-// In production: serves from /frontend/dist (via git pull)
-// __dirname = /backend/src, so ../../frontend/dist
-const staticPath = path.join(__dirname, '../../frontend/dist')
+// In production: serves from parent directory (flat structure via FTP)
+const staticPath = path.join(__dirname, '..')
 await fastify.register(fastifyStatic, {
   root: staticPath,
   prefix: '/',
@@ -122,6 +122,20 @@ fastify.decorate('authenticateAdmin', async function (request, reply) {
   }
 })
 
+// Check admin role decorator
+fastify.decorate('checkAdminRole', function (allowedRoles) {
+  return async function (request, reply) {
+    const adminRole = request.user.adminRole
+    if (!allowedRoles.includes(adminRole)) {
+      return reply.status(403).send({
+        error: 'Akses ditolak. Anda tidak memiliki izin untuk fitur ini.',
+        requiredRoles: allowedRoles,
+        yourRole: adminRole
+      })
+    }
+  }
+})
+
 // Register routes
 fastify.register(authRoutes, { prefix: '/api/auth' })
 fastify.register(kategoriRoutes, { prefix: '/api/kategori' })
@@ -135,6 +149,7 @@ fastify.register(materiRoutes, { prefix: '/api/materi' })
 fastify.register(periodeRoutes, { prefix: '/api/periode' })
 fastify.register(lokasiRoutes, { prefix: '/api/lokasi' })
 fastify.register(uploadRoutes, { prefix: '/api/upload' })
+fastify.register(stepConfigRoutes, { prefix: '/api' })
 
 // Setup WebSocket
 setupWebSocket(fastify)

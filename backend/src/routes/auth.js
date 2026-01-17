@@ -88,6 +88,14 @@ export default async function authRoutes(fastify, options) {
       })
     }
 
+    // Check if sub kategori is active
+    if (!subKategori.isActive) {
+      return reply.status(403).send({
+        error: `Akses untuk ${subKategori.nama} sedang tidak tersedia. Silakan hubungi administrator.`,
+        code: 'SUB_KATEGORI_INACTIVE'
+      })
+    }
+
     // Check if user already has active session
     const existingSession = activeSessions.get(user.id)
     if (existingSession) {
@@ -171,7 +179,9 @@ export default async function authRoutes(fastify, options) {
       id: admin.id,
       username: admin.username,
       nama: admin.nama,
-      role: 'admin'
+      adminRole: admin.role, // SUPER_ADMIN, ADMIN_KP, ADMIN_KEPWIL
+      kepwil: admin.kepwil,
+      role: 'admin' // untuk membedakan dengan user biasa
     }, { expiresIn: '8h' })
 
     return {
@@ -180,7 +190,8 @@ export default async function authRoutes(fastify, options) {
         id: admin.id,
         username: admin.username,
         nama: admin.nama,
-        role: admin.role
+        role: admin.role,
+        kepwil: admin.kepwil
       }
     }
   })
@@ -201,7 +212,7 @@ export default async function authRoutes(fastify, options) {
     if (role === 'admin') {
       const admin = await prisma.admin.findUnique({
         where: { id },
-        select: { id: true, username: true, nama: true, role: true }
+        select: { id: true, username: true, nama: true, role: true, kepwil: true }
       })
       return { user: admin, role: 'admin' }
     }

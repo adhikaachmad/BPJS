@@ -10,18 +10,37 @@ const authStore = useAuthStore()
 const sidebarOpen = ref(true)
 const sidebarCollapsed = ref(false)
 
-const menuItems = [
-  { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard', description: 'Ringkasan & statistik' },
-  { name: 'Kategori', path: '/admin/kategori', icon: 'folder', description: 'Kelola kategori' },
-  { name: 'Modul', path: '/admin/modul', icon: 'collection', description: 'Kelola modul' },
-  { name: 'Materi', path: '/admin/materi', icon: 'book', description: 'Konten KUPAS TUNTAS' },
-  { name: 'Soal & Jadwal', path: '/admin/soal', icon: 'question', description: 'Pembuatan soal & penjadwalan' },
-  { name: 'Users', path: '/admin/users', icon: 'users', description: 'Manajemen pengguna' },
-  { name: 'Laporan', path: '/admin/reports', icon: 'chart', description: 'Hasil & export' }
+// All menu items with role requirements
+const allMenuItems = [
+  { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard', description: 'Ringkasan & statistik', roles: ['SUPER_ADMIN', 'ADMIN_KP', 'ADMIN_KEPWIL'] },
+  { name: 'Akses Login', path: '/admin/akses', icon: 'shield', description: 'Buka/tutup akses login', roles: ['SUPER_ADMIN'] },
+  { name: 'Kelola Admin', path: '/admin/admins', icon: 'key', description: 'Manajemen administrator', roles: ['SUPER_ADMIN', 'ADMIN_KP'] },
+  { name: 'Kategori', path: '/admin/kategori', icon: 'folder', description: 'Kelola kategori', roles: ['SUPER_ADMIN', 'ADMIN_KP'] },
+  { name: 'Step Pembelajaran', path: '/admin/step-config', icon: 'steps', description: 'Konfigurasi tampilan step', roles: ['SUPER_ADMIN', 'ADMIN_KP'] },
+  { name: 'Soal & Jadwal', path: '/admin/soal', icon: 'question', description: 'Pembuatan soal & penjadwalan', roles: ['SUPER_ADMIN', 'ADMIN_KP'] },
+  { name: 'Users', path: '/admin/users', icon: 'users', description: 'Manajemen pengguna', roles: ['SUPER_ADMIN', 'ADMIN_KP', 'ADMIN_KEPWIL'] },
+  { name: 'Laporan', path: '/admin/reports', icon: 'chart', description: 'Hasil & export', roles: ['SUPER_ADMIN', 'ADMIN_KP', 'ADMIN_KEPWIL'] }
 ]
 
+// Filter menu items based on current admin's role
+const menuItems = computed(() => {
+  const adminRole = authStore.adminRole
+  if (!adminRole) return []
+  return allMenuItems.filter(item => item.roles.includes(adminRole))
+})
+
+// Get role display name
+const roleDisplayName = computed(() => {
+  const roleMap = {
+    'SUPER_ADMIN': 'Super Admin',
+    'ADMIN_KP': 'Admin KP',
+    'ADMIN_KEPWIL': 'Admin Kepwil'
+  }
+  return roleMap[authStore.adminRole] || 'Admin'
+})
+
 const currentPage = computed(() => {
-  return menuItems.find(item => route.path === item.path)
+  return menuItems.value.find(item => route.path === item.path)
 })
 
 function isActive(path) {
@@ -99,9 +118,9 @@ function toggleSidebar() {
           <svg v-else-if="item.icon === 'folder'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
-          <!-- Collection Icon -->
-          <svg v-else-if="item.icon === 'collection'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          <!-- Steps Icon -->
+          <svg v-else-if="item.icon === 'steps'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
           </svg>
           <!-- Book Icon -->
           <svg v-else-if="item.icon === 'book'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -122,6 +141,14 @@ function toggleSidebar() {
           <!-- Chart Icon -->
           <svg v-else-if="item.icon === 'chart'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <!-- Shield Icon -->
+          <svg v-else-if="item.icon === 'shield'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          <!-- Key Icon -->
+          <svg v-else-if="item.icon === 'key'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
           </svg>
 
           <div v-if="!sidebarCollapsed" class="flex-1 min-w-0">
@@ -152,7 +179,8 @@ function toggleSidebar() {
           </div>
           <div v-if="!sidebarCollapsed" class="flex-1 min-w-0">
             <p class="font-medium text-sm truncate">{{ authStore.user?.nama || 'Administrator' }}</p>
-            <p class="text-xs text-gray-400">{{ authStore.user?.role || 'Admin' }}</p>
+            <p class="text-xs text-gray-400">{{ roleDisplayName }}</p>
+            <p v-if="authStore.adminKepwil" class="text-xs text-bpjs-400 truncate">{{ authStore.adminKepwil }}</p>
           </div>
         </div>
 
@@ -216,7 +244,7 @@ function toggleSidebar() {
             <div class="flex items-center space-x-3 pl-3 border-l border-gray-200">
               <div class="hidden sm:block text-right">
                 <p class="text-sm font-medium text-gray-700">{{ authStore.user?.nama }}</p>
-                <p class="text-xs text-gray-500">Administrator</p>
+                <p class="text-xs text-gray-500">{{ roleDisplayName }}</p>
               </div>
               <div class="w-10 h-10 bg-gradient-to-br from-bpjs-400 to-bpjs-600 rounded-full flex items-center justify-center shadow-md">
                 <span class="text-white font-bold">{{ authStore.user?.nama?.charAt(0) || 'A' }}</span>

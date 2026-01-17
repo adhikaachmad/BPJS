@@ -1,5 +1,20 @@
 import bcrypt from 'bcryptjs'
 
+// Role constants
+const ROLES = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  ADMIN_KP: 'ADMIN_KP',
+  ADMIN_KEPWIL: 'ADMIN_KEPWIL'
+}
+
+// Helper function to get kepwil filter for ADMIN_KEPWIL
+function getKepwilFilter(request) {
+  if (request.user.adminRole === ROLES.ADMIN_KEPWIL) {
+    return request.user.kepwil
+  }
+  return null // No filter for SUPER_ADMIN and ADMIN_KP
+}
+
 export default async function userRoutes(fastify, options) {
   const { prisma } = fastify
 
@@ -220,13 +235,22 @@ export default async function userRoutes(fastify, options) {
     return result
   }
 
-  // Get all users (admin only)
+  // Get all users (admin only) - filtered by kepwil for ADMIN_KEPWIL
   fastify.get('/', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
-    const { subKategoriId, search, page = 1, limit = 20 } = request.query
+    const { subKategoriId, search, kepwil: filterKepwil, page = 1, limit = 20 } = request.query
 
     const where = {}
+
+    // Auto-filter by kepwil for ADMIN_KEPWIL
+    const adminKepwil = getKepwilFilter(request)
+    if (adminKepwil) {
+      where.kepwil = adminKepwil
+    } else if (filterKepwil) {
+      // For SUPER_ADMIN and ADMIN_KP, allow manual filter
+      where.kepwil = filterKepwil
+    }
 
     if (subKategoriId) {
       where.subKategoriId = parseInt(subKategoriId)
@@ -238,6 +262,15 @@ export default async function userRoutes(fastify, options) {
         { nama: { contains: search } },
         { email: { contains: search } }
       ]
+      // If there's also a kepwil filter, we need to combine them properly
+      if (where.kepwil) {
+        where.AND = [
+          { kepwil: where.kepwil },
+          { OR: where.OR }
+        ]
+        delete where.kepwil
+        delete where.OR
+      }
     }
 
     const [total, users] = await Promise.all([
@@ -263,7 +296,10 @@ export default async function userRoutes(fastify, options) {
         limit: parseInt(limit),
         total,
         totalPages: Math.ceil(total / parseInt(limit))
-      }
+      },
+      // Include admin role info for frontend
+      adminRole: request.user.adminRole,
+      adminKepwil: adminKepwil
     }
   })
 
@@ -292,6 +328,12 @@ export default async function userRoutes(fastify, options) {
       return reply.status(404).send({ error: 'User not found' })
     }
 
+    // ADMIN_KEPWIL can only view users in their kepwil
+    const adminKepwil = getKepwilFilter(request)
+    if (adminKepwil && user.kepwil !== adminKepwil) {
+      return reply.status(403).send({ error: 'Anda tidak memiliki akses ke user ini' })
+    }
+
     return user
   })
 
@@ -303,6 +345,14 @@ export default async function userRoutes(fastify, options) {
 
     if (!npp || !nama || !posisi || !password || !subKategoriId) {
       return reply.status(400).send({ error: 'NPP, nama, posisi, password, and subKategoriId are required' })
+    }
+
+    // ADMIN_KEPWIL can only create users for their own kepwil
+    const adminKepwil = getKepwilFilter(request)
+    if (adminKepwil) {
+      if (!kepwil || kepwil !== adminKepwil) {
+        return reply.status(403).send({ error: 'Anda hanya dapat membuat user untuk wilayah Anda' })
+      }
     }
 
     const existing = await prisma.user.findUnique({ where: { npp } })
@@ -344,6 +394,26 @@ export default async function userRoutes(fastify, options) {
   }, async (request, reply) => {
     const { id } = request.params
     const { npp, nama, email, posisi, vendor, kepwil, kcKabupaten, kakabKabupaten, password, subKategoriId } = request.body
+
+    // Get existing user
+    const existingUser = await prisma.user.findUnique({
+      where: { id: parseInt(id) }
+    })
+
+    if (!existingUser) {
+      return reply.status(404).send({ error: 'User tidak ditemukan' })
+    }
+
+    // ADMIN_KEPWIL can only update users in their kepwil
+    const adminKepwil = getKepwilFilter(request)
+    if (adminKepwil && existingUser.kepwil !== adminKepwil) {
+      return reply.status(403).send({ error: 'Anda tidak memiliki akses untuk mengubah user ini' })
+    }
+
+    // ADMIN_KEPWIL cannot change user's kepwil to another kepwil
+    if (adminKepwil && kepwil !== undefined && kepwil !== adminKepwil) {
+      return reply.status(403).send({ error: 'Anda tidak dapat memindahkan user ke wilayah lain' })
+    }
 
     // Check if NPP already exists for other user
     if (npp) {
@@ -394,6 +464,21 @@ export default async function userRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
     const { id } = request.params
+
+    // Get existing user
+    const existingUser = await prisma.user.findUnique({
+      where: { id: parseInt(id) }
+    })
+
+    if (!existingUser) {
+      return reply.status(404).send({ error: 'User tidak ditemukan' })
+    }
+
+    // ADMIN_KEPWIL can only delete users in their kepwil
+    const adminKepwil = getKepwilFilter(request)
+    if (adminKepwil && existingUser.kepwil !== adminKepwil) {
+      return reply.status(403).send({ error: 'Anda tidak memiliki akses untuk menghapus user ini' })
+    }
 
     // Check if user has test sessions
     const sessions = await prisma.testSession.count({

@@ -15,6 +15,7 @@ const loadingSubKategori = ref(true)
 const errorMessage = ref('')
 const subKategori = ref(null)
 const showPassword = ref(false)
+const notFound = ref(false)
 
 const slug = computed(() => route.params.slug)
 
@@ -45,12 +46,15 @@ const colors = computed(() => {
   return colorMap[subKategori.value.kategori.nama] || colorMap['TAD']
 })
 
+const isActive = computed(() => subKategori.value?.isActive ?? false)
+
 async function loadSubKategori() {
   loadingSubKategori.value = true
   try {
     const response = await axios.get(`/api/auth/sub-kategori/${slug.value}`)
     subKategori.value = response.data.subKategori
   } catch (error) {
+    notFound.value = true
     errorMessage.value = 'Sub kategori tidak ditemukan'
     setTimeout(() => {
       router.push('/login')
@@ -72,7 +76,10 @@ async function handleLogin() {
   const success = await authStore.loginWithSubKategori(npp.value, password.value, slug.value)
 
   if (success) {
-    const redirect = route.query.redirect || '/'
+    // Redirect to user's sub-kategori page or the intended redirect
+    const userSubKategoriId = authStore.user?.subKategori?.id
+    const defaultRedirect = userSubKategoriId ? `/sub-kategori/${userSubKategoriId}` : '/'
+    const redirect = route.query.redirect || defaultRedirect
     router.push(redirect)
   } else {
     errorMessage.value = authStore.error || 'Login gagal'
@@ -99,8 +106,78 @@ onMounted(() => {
       <p class="text-white/80">Memuat...</p>
     </div>
 
-    <!-- Login Form -->
-    <div v-else-if="subKategori" class="max-w-md w-full">
+    <!-- Under Construction State (SubKategori inactive) -->
+    <div v-else-if="subKategori && !isActive" class="max-w-lg w-full text-center">
+      <div class="bg-white rounded-3xl shadow-2xl p-10">
+        <!-- Construction Icon -->
+        <div class="w-24 h-24 mx-auto bg-amber-100 rounded-full flex items-center justify-center mb-6">
+          <svg class="w-14 h-14 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+          </svg>
+        </div>
+
+        <!-- Title -->
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">Segera Hadir</h1>
+        <p class="text-gray-600 mb-6">
+          Akses login untuk <strong>{{ subKategori.nama }}</strong> sedang dalam tahap pengembangan.
+        </p>
+
+        <!-- Info Card -->
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8">
+          <div class="flex items-start space-x-3">
+            <svg class="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div class="text-left">
+              <p class="font-medium text-amber-800">Dalam Pengembangan</p>
+              <p class="text-sm text-amber-700 mt-1">
+                Fitur ini akan segera tersedia. Silakan hubungi administrator untuk informasi lebih lanjut.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Indicator -->
+        <div class="mb-8">
+          <div class="flex items-center justify-center space-x-2 mb-2">
+            <span class="w-3 h-3 bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></span>
+            <span class="w-3 h-3 bg-amber-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></span>
+            <span class="w-3 h-3 bg-amber-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></span>
+          </div>
+          <p class="text-sm text-gray-500">Kami sedang mempersiapkan yang terbaik untuk Anda</p>
+        </div>
+
+        <!-- Back Buttons -->
+        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+          <router-link
+            to="/login"
+            class="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors inline-flex items-center justify-center"
+          >
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Pilih Posisi Lain
+          </router-link>
+          <router-link
+            to="/"
+            class="px-6 py-3 bg-gradient-to-r from-bpjs-500 to-bpjs-600 text-white rounded-xl font-medium hover:from-bpjs-600 hover:to-bpjs-700 transition-colors inline-flex items-center justify-center"
+          >
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            Kembali ke Beranda
+          </router-link>
+        </div>
+      </div>
+
+      <!-- SubKategori Info -->
+      <div class="mt-6 text-white/80 text-sm">
+        <p>{{ subKategori.kategori?.nama }} - {{ subKategori.nama }}</p>
+      </div>
+    </div>
+
+    <!-- Login Form (SubKategori active) -->
+    <div v-else-if="subKategori && isActive" class="max-w-md w-full">
       <!-- Logo & Header -->
       <div class="text-center mb-8">
         <div class="w-20 h-20 mx-auto bg-white rounded-2xl shadow-lg flex items-center justify-center mb-4">
@@ -224,8 +301,8 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Error State -->
-    <div v-else class="text-center">
+    <!-- Error State (SubKategori not found) -->
+    <div v-else-if="notFound" class="text-center">
       <div class="w-20 h-20 mx-auto bg-white/20 rounded-2xl flex items-center justify-center mb-4">
         <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />

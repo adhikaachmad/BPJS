@@ -1,5 +1,34 @@
 import bcrypt from 'bcryptjs'
 
+// Role constants
+const ROLES = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  ADMIN_KP: 'ADMIN_KP',
+  ADMIN_KEPWIL: 'ADMIN_KEPWIL'
+}
+
+// Helper function to check if admin has required role
+function checkRole(...allowedRoles) {
+  return async (request, reply) => {
+    const adminRole = request.user.adminRole
+    if (!allowedRoles.includes(adminRole)) {
+      return reply.status(403).send({
+        error: 'Akses ditolak. Anda tidak memiliki izin untuk fitur ini.',
+        requiredRoles: allowedRoles,
+        yourRole: adminRole
+      })
+    }
+  }
+}
+
+// Helper function to get kepwil filter for ADMIN_KEPWIL
+function getKepwilFilter(request) {
+  if (request.user.adminRole === ROLES.ADMIN_KEPWIL) {
+    return request.user.kepwil
+  }
+  return null // No filter for SUPER_ADMIN and ADMIN_KP
+}
+
 export default async function adminRoutes(fastify, options) {
   const { prisma } = fastify
 
@@ -342,16 +371,30 @@ export default async function adminRoutes(fastify, options) {
     }
   })
 
-  // Get all admins
+  // Get all admins - SUPER_ADMIN & ADMIN_KP only
   fastify.get('/list', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
+    const adminRole = request.user.adminRole
+
+    // Build where clause based on role
+    let whereClause = {}
+    if (adminRole === ROLES.ADMIN_KP) {
+      // Admin KP can only see ADMIN_KP and ADMIN_KEPWIL
+      whereClause = {
+        role: { in: [ROLES.ADMIN_KP, ROLES.ADMIN_KEPWIL] }
+      }
+    }
+    // SUPER_ADMIN can see all
+
     const admins = await prisma.admin.findMany({
+      where: whereClause,
       select: {
         id: true,
         username: true,
         nama: true,
         role: true,
+        kepwil: true,
         createdAt: true
       },
       orderBy: { createdAt: 'desc' }
@@ -359,19 +402,36 @@ export default async function adminRoutes(fastify, options) {
     return admins
   })
 
-  // Create new admin
+  // Create new admin - SUPER_ADMIN & ADMIN_KP only
   fastify.post('/create', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
-    const { username, password, nama, role } = request.body
+    const { username, password, nama, role, kepwil } = request.body
+    const adminRole = request.user.adminRole
 
     if (!username || !password || !nama) {
-      return reply.status(400).send({ error: 'Username, password, and nama are required' })
+      return reply.status(400).send({ error: 'Username, password, dan nama wajib diisi' })
+    }
+
+    // Validate role
+    const validRoles = [ROLES.SUPER_ADMIN, ROLES.ADMIN_KP, ROLES.ADMIN_KEPWIL]
+    if (role && !validRoles.includes(role)) {
+      return reply.status(400).send({ error: 'Role tidak valid' })
+    }
+
+    // ADMIN_KP cannot create SUPER_ADMIN
+    if (adminRole === ROLES.ADMIN_KP && role === ROLES.SUPER_ADMIN) {
+      return reply.status(403).send({ error: 'Anda tidak dapat membuat Super Admin' })
+    }
+
+    // ADMIN_KEPWIL must have kepwil
+    if (role === ROLES.ADMIN_KEPWIL && !kepwil) {
+      return reply.status(400).send({ error: 'Kepwil wajib diisi untuk Admin Kepwil' })
     }
 
     const existing = await prisma.admin.findUnique({ where: { username } })
     if (existing) {
-      return reply.status(409).send({ error: 'Username already exists' })
+      return reply.status(409).send({ error: 'Username sudah digunakan' })
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
@@ -381,13 +441,15 @@ export default async function adminRoutes(fastify, options) {
         username,
         password: hashedPassword,
         nama,
-        role: role || 'admin'
+        role: role || ROLES.ADMIN_KP,
+        kepwil: role === ROLES.ADMIN_KEPWIL ? kepwil : null
       },
       select: {
         id: true,
         username: true,
         nama: true,
         role: true,
+        kepwil: true,
         createdAt: true
       }
     })
@@ -395,27 +457,58 @@ export default async function adminRoutes(fastify, options) {
     return admin
   })
 
-  // Update admin
+  // Update admin - SUPER_ADMIN & ADMIN_KP only
   fastify.put('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { id } = request.params
-    const { nama, password, role } = request.body
+    const { nama, password, role, kepwil } = request.body
+    const adminRole = request.user.adminRole
+    const adminId = parseInt(id)
 
-    const data = { nama, role }
+    // Get target admin
+    const targetAdmin = await prisma.admin.findUnique({
+      where: { id: adminId }
+    })
+
+    if (!targetAdmin) {
+      return reply.status(404).send({ error: 'Admin tidak ditemukan' })
+    }
+
+    // ADMIN_KP cannot edit SUPER_ADMIN
+    if (adminRole === ROLES.ADMIN_KP && targetAdmin.role === ROLES.SUPER_ADMIN) {
+      return reply.status(403).send({ error: 'Anda tidak dapat mengubah Super Admin' })
+    }
+
+    // ADMIN_KP cannot promote to SUPER_ADMIN
+    if (adminRole === ROLES.ADMIN_KP && role === ROLES.SUPER_ADMIN) {
+      return reply.status(403).send({ error: 'Anda tidak dapat mengubah role menjadi Super Admin' })
+    }
+
+    // ADMIN_KEPWIL must have kepwil
+    if (role === ROLES.ADMIN_KEPWIL && !kepwil) {
+      return reply.status(400).send({ error: 'Kepwil wajib diisi untuk Admin Kepwil' })
+    }
+
+    const data = {
+      nama,
+      role,
+      kepwil: role === ROLES.ADMIN_KEPWIL ? kepwil : null
+    }
 
     if (password) {
       data.password = await bcrypt.hash(password, 10)
     }
 
     const admin = await prisma.admin.update({
-      where: { id: parseInt(id) },
+      where: { id: adminId },
       data,
       select: {
         id: true,
         username: true,
         nama: true,
         role: true,
+        kepwil: true,
         createdAt: true
       }
     })
@@ -423,23 +516,38 @@ export default async function adminRoutes(fastify, options) {
     return admin
   })
 
-  // Delete admin
+  // Delete admin - SUPER_ADMIN & ADMIN_KP only
   fastify.delete('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { id } = request.params
     const adminId = parseInt(id)
+    const adminRole = request.user.adminRole
 
     // Prevent deleting self
     if (request.user.id === adminId) {
-      return reply.status(400).send({ error: 'Cannot delete yourself' })
+      return reply.status(400).send({ error: 'Tidak dapat menghapus diri sendiri' })
+    }
+
+    // Get target admin
+    const targetAdmin = await prisma.admin.findUnique({
+      where: { id: adminId }
+    })
+
+    if (!targetAdmin) {
+      return reply.status(404).send({ error: 'Admin tidak ditemukan' })
+    }
+
+    // ADMIN_KP cannot delete SUPER_ADMIN
+    if (adminRole === ROLES.ADMIN_KP && targetAdmin.role === ROLES.SUPER_ADMIN) {
+      return reply.status(403).send({ error: 'Anda tidak dapat menghapus Super Admin' })
     }
 
     await prisma.admin.delete({
       where: { id: adminId }
     })
 
-    return { message: 'Admin deleted successfully' }
+    return { message: 'Admin berhasil dihapus' }
   })
 
   // Get all test results with filters
@@ -557,12 +665,12 @@ export default async function adminRoutes(fastify, options) {
   })
 
   // ===============================
-  // SCHEDULING MANAGEMENT
+  // SCHEDULING MANAGEMENT - SUPER_ADMIN & ADMIN_KP only
   // ===============================
 
   // Get all moduls with scheduling info for a sub-kategori
   fastify.get('/scheduling/:subKategoriId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { subKategoriId } = request.params
 
@@ -576,7 +684,7 @@ export default async function adminRoutes(fastify, options) {
 
   // Update JITU scheduling
   fastify.put('/scheduling/jitu/:modulId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { modulId } = request.params
     const { isScheduled, jadwalMulai, jadwalSelesai } = request.body
@@ -610,7 +718,7 @@ export default async function adminRoutes(fastify, options) {
 
   // Update DO-CHECK publish time
   fastify.put('/scheduling/docheck/:modulId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { modulId } = request.params
     const { publishDoCheck } = request.body
@@ -642,7 +750,7 @@ export default async function adminRoutes(fastify, options) {
 
   // Get scheduling overview for all sub-kategoris
   fastify.get('/scheduling-overview', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const subKategoris = await prisma.subKategori.findMany({
       include: {
@@ -670,12 +778,12 @@ export default async function adminRoutes(fastify, options) {
   })
 
   // ===============================
-  // MATERI MANAGEMENT
+  // MATERI MANAGEMENT - SUPER_ADMIN & ADMIN_KP only
   // ===============================
 
   // Get all materi for a modul
   fastify.get('/materi/modul/:modulId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { modulId } = request.params
 
@@ -700,7 +808,7 @@ export default async function adminRoutes(fastify, options) {
 
   // Create materi
   fastify.post('/materi', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { modulId, judul, konten, videoUrl, pdfUrl, urutan } = request.body
 
@@ -742,7 +850,7 @@ export default async function adminRoutes(fastify, options) {
 
   // Update materi
   fastify.put('/materi/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { id } = request.params
     const { judul, konten, videoUrl, pdfUrl, urutan } = request.body
@@ -757,7 +865,7 @@ export default async function adminRoutes(fastify, options) {
 
   // Delete materi
   fastify.delete('/materi/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { id } = request.params
 
@@ -770,7 +878,7 @@ export default async function adminRoutes(fastify, options) {
 
   // Reorder materi
   fastify.put('/materi/reorder/:modulId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { modulId } = request.params
     const { order } = request.body // Array of { id, urutan }
@@ -787,5 +895,76 @@ export default async function adminRoutes(fastify, options) {
     }
 
     return { message: 'Urutan materi berhasil diperbarui' }
+  })
+
+  // ===============================
+  // SUB-KATEGORI ACCESS MANAGEMENT - SUPER_ADMIN only
+  // ===============================
+
+  // Get all sub-kategoris with access status (grouped by kategori)
+  fastify.get('/sub-kategori-access', {
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN)]
+  }, async (request, reply) => {
+    const kategoris = await prisma.kategori.findMany({
+      include: {
+        subKategoris: {
+          orderBy: { nama: 'asc' },
+          include: {
+            _count: {
+              select: { users: true }
+            }
+          }
+        }
+      },
+      orderBy: { nama: 'asc' }
+    })
+
+    return kategoris
+  })
+
+  // Toggle sub-kategori access (on/off) - SUPER_ADMIN only
+  fastify.put('/sub-kategori/:id/toggle-access', {
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN)]
+  }, async (request, reply) => {
+    const { id } = request.params
+    const { isActive } = request.body
+
+    const subKategori = await prisma.subKategori.findUnique({
+      where: { id: parseInt(id) }
+    })
+
+    if (!subKategori) {
+      return reply.status(404).send({ error: 'Sub kategori tidak ditemukan' })
+    }
+
+    const updated = await prisma.subKategori.update({
+      where: { id: parseInt(id) },
+      data: { isActive: isActive }
+    })
+
+    return {
+      message: `Akses ${updated.nama} berhasil ${isActive ? 'diaktifkan' : 'dinonaktifkan'}`,
+      subKategori: updated
+    }
+  })
+
+  // Bulk update sub-kategori access - SUPER_ADMIN only
+  fastify.put('/sub-kategori/bulk-access', {
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN)]
+  }, async (request, reply) => {
+    const { updates } = request.body // Array of { id, isActive }
+
+    if (!updates || !Array.isArray(updates)) {
+      return reply.status(400).send({ error: 'Updates harus berupa array' })
+    }
+
+    for (const item of updates) {
+      await prisma.subKategori.update({
+        where: { id: item.id },
+        data: { isActive: item.isActive }
+      })
+    }
+
+    return { message: 'Akses sub kategori berhasil diperbarui' }
   })
 }

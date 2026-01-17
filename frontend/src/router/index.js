@@ -74,15 +74,27 @@ const routes = [
     meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
   },
   {
+    path: '/admin/akses',
+    name: 'admin-akses',
+    component: () => import('@/pages/admin/AksesManagePage.vue'),
+    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+  },
+  {
+    path: '/admin/admins',
+    name: 'admin-admins',
+    component: () => import('@/pages/admin/AdminManagePage.vue'),
+    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+  },
+  {
     path: '/admin/kategori',
     name: 'admin-kategori',
     component: () => import('@/pages/admin/KategoriManagePage.vue'),
     meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
   },
   {
-    path: '/admin/modul',
-    name: 'admin-modul',
-    component: () => import('@/pages/admin/ModulManagePage.vue'),
+    path: '/admin/step-config',
+    name: 'admin-step-config',
+    component: () => import('@/pages/admin/StepConfigPage.vue'),
     meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
   },
   {

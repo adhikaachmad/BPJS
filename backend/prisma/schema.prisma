@@ -22,6 +22,7 @@ model SubKategori {
   nama         String
   slug         String        @unique
   deskripsi    String?
+  isActive     Boolean       @default(false)
   kategoriId   Int
   kategori     Kategori      @relation(fields: [kategoriId], references: [id], onDelete: Cascade)
   users        User[]
@@ -179,7 +180,8 @@ model Admin {
   username  String   @unique
   password  String
   nama      String
-  role      String   @default("admin")
+  role      String   @default("SUPER_ADMIN") // SUPER_ADMIN, ADMIN_KP, ADMIN_KEPWIL
+  kepwil    String?  // Kantor Wilayah (untuk ADMIN_KEPWIL)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -297,4 +299,17 @@ model HasilTestPeriode {
   tidakDijawab          Int                  @default(0)
   skor                  Float
   createdAt             DateTime             @default(now())
+}
+
+// Konfigurasi Step Pembelajaran (Kupas Tuntas, JITU, Do-Check, Rekapin)
+model StepConfig {
+  id           String   @id // materi, test, docheck, rekap
+  nama         String   // Nama yang ditampilkan (Kupas Tuntas, JITU, dll)
+  deskripsi    String   // Deskripsi step
+  icon         String   // SVG icon string
+  gradientFrom String   // Tailwind gradient color (e.g., violet-500)
+  gradientTo   String   // Tailwind gradient color (e.g., purple-600)
+  urutan       Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

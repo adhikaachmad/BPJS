@@ -10,26 +10,33 @@ const authStore = useAuthStore()
 
 const subKategori = ref(null)
 const activePeriode = ref(null)
+const stepConfigs = ref([])
 const loading = ref(true)
 const error = ref(null)
 const noPeriode = ref(false)
 
-// Step definitions for learning flow
+// Step definitions for learning flow - now dynamic from API
 const steps = computed(() => {
-  if (!activePeriode.value) return []
+  if (!activePeriode.value || stepConfigs.value.length === 0) return []
 
   const periode = activePeriode.value
   const progress = periode.userProgress || {}
 
+  // Find step config by id
+  const getConfig = (id) => stepConfigs.value.find(s => s.id === id) || {}
+
+  const materiConfig = getConfig('materi')
+  const testConfig = getConfig('test')
+  const docheckConfig = getConfig('docheck')
+  const rekapConfig = getConfig('rekap')
+
   return [
     {
       id: 'materi',
-      name: 'Kupas Tuntas',
-      description: 'Pelajari materi untuk mempersiapkan test',
-      icon: `<svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-      </svg>`,
-      gradient: 'from-violet-500 to-purple-600',
+      name: materiConfig.nama || 'Kupas Tuntas',
+      description: materiConfig.deskripsi || 'Pelajari materi untuk mempersiapkan test',
+      icon: materiConfig.icon || '',
+      gradient: `from-${materiConfig.gradientFrom || 'violet-500'} to-${materiConfig.gradientTo || 'purple-600'}`,
       count: periode.jumlahMateri,
       countLabel: 'materi',
       completed: progress.materiCompleted,
@@ -39,12 +46,10 @@ const steps = computed(() => {
     },
     {
       id: 'test',
-      name: 'JITU',
-      description: 'Kerjakan soal-soal test untuk menguji pemahaman',
-      icon: `<svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>`,
-      gradient: 'from-blue-500 to-indigo-600',
+      name: testConfig.nama || 'JITU',
+      description: testConfig.deskripsi || 'Kerjakan soal-soal test untuk menguji pemahaman',
+      icon: testConfig.icon || '',
+      gradient: `from-${testConfig.gradientFrom || 'blue-500'} to-${testConfig.gradientTo || 'indigo-600'}`,
       count: periode.jumlahSoal,
       countLabel: 'soal',
       completed: progress.testCompleted,
@@ -56,12 +61,10 @@ const steps = computed(() => {
     },
     {
       id: 'docheck',
-      name: 'Do-Check',
-      description: 'Lihat koreksi dan pembahasan jawaban test',
-      icon: `<svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-      </svg>`,
-      gradient: 'from-teal-500 to-cyan-600',
+      name: docheckConfig.nama || 'Do-Check',
+      description: docheckConfig.deskripsi || 'Lihat koreksi dan pembahasan jawaban test',
+      icon: docheckConfig.icon || '',
+      gradient: `from-${docheckConfig.gradientFrom || 'teal-500'} to-${docheckConfig.gradientTo || 'cyan-600'}`,
       count: progress.hasilTest?.benar || 0,
       countLabel: 'benar',
       completed: progress.testCompleted && (periode.status === 'docheck' || periode.status === 'selesai'),
@@ -71,12 +74,10 @@ const steps = computed(() => {
     },
     {
       id: 'rekap',
-      name: 'Rekapin',
-      description: 'Lihat rekap progress dan hasil pembelajaran',
-      icon: `<svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>`,
-      gradient: 'from-amber-500 to-orange-600',
+      name: rekapConfig.nama || 'Rekapin',
+      description: rekapConfig.deskripsi || 'Lihat rekap progress dan hasil pembelajaran',
+      icon: rekapConfig.icon || '',
+      gradient: `from-${rekapConfig.gradientFrom || 'amber-500'} to-${rekapConfig.gradientTo || 'orange-600'}`,
       count: progress.hasilTest ? Math.round(progress.hasilTest.skor) : 0,
       countLabel: 'skor',
       completed: progress.testCompleted,
@@ -97,8 +98,13 @@ async function loadData() {
   noPeriode.value = false
 
   try {
-    // Get sub-kategori info
-    const subKategoriRes = await api.get(`/kategori/sub-kategori/${route.params.subKategoriId}`)
+    // Fetch step configs and sub-kategori info in parallel
+    const [stepConfigRes, subKategoriRes] = await Promise.all([
+      api.get('/step-config'),
+      api.get(`/kategori/sub-kategori/${route.params.subKategoriId}`)
+    ])
+
+    stepConfigs.value = stepConfigRes.data
     subKategori.value = subKategoriRes.data
 
     // Get active periode for user

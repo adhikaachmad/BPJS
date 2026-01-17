@@ -16,19 +16,25 @@ const colorMap = {
     gradient: 'from-emerald-500 to-teal-600',
     bg: 'bg-emerald-50',
     text: 'text-emerald-600',
-    border: 'border-emerald-200'
+    border: 'border-emerald-200',
+    bgInactive: 'bg-gray-100',
+    textInactive: 'text-gray-400'
   },
   'Pegawai': {
     gradient: 'from-blue-500 to-indigo-600',
     bg: 'bg-blue-50',
     text: 'text-blue-600',
-    border: 'border-blue-200'
+    border: 'border-blue-200',
+    bgInactive: 'bg-gray-100',
+    textInactive: 'text-gray-400'
   },
   'Petugas Sentralisasi': {
     gradient: 'from-purple-500 to-violet-600',
     bg: 'bg-purple-50',
     text: 'text-purple-600',
-    border: 'border-purple-200'
+    border: 'border-purple-200',
+    bgInactive: 'bg-gray-100',
+    textInactive: 'text-gray-400'
   }
 }
 
@@ -48,8 +54,13 @@ async function loadKategoris() {
   }
 }
 
-function goToKategori(kategoriId) {
-  router.push(`/kategori/${kategoriId}`)
+function goToSubKategoriLogin(subKategori) {
+  // Always redirect to login page - it will show Under Construction if inactive
+  router.push(`/login/${subKategori.slug}`)
+}
+
+function hasActiveSubKategori(kategori) {
+  return kategori.subKategoris?.some(sk => sk.isActive)
 }
 
 onMounted(() => {
@@ -93,8 +104,7 @@ onMounted(() => {
         <div
           v-for="kategori in kategoris"
           :key="kategori.id"
-          @click="goToKategori(kategori.id)"
-          class="bg-white rounded-2xl shadow-xl overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]"
+          class="bg-white rounded-2xl shadow-xl overflow-hidden transition-all duration-300"
         >
           <!-- Kategori Header -->
           <div class="px-6 py-5 bg-gradient-to-r" :class="getColors(kategori.nama).gradient">
@@ -114,26 +124,31 @@ onMounted(() => {
                 <h2 class="text-xl font-bold text-white">{{ kategori.nama }}</h2>
                 <p class="text-white/80 text-sm">{{ kategori.deskripsi }}</p>
               </div>
-              <svg class="w-6 h-6 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
             </div>
           </div>
 
           <!-- Sub Kategori List Preview -->
           <div class="px-6 py-4">
             <div class="flex flex-wrap gap-2">
-              <span
+              <button
                 v-for="sub in kategori.subKategoris"
                 :key="sub.id"
-                class="px-3 py-1 rounded-full text-sm"
-                :class="[getColors(kategori.nama).bg, getColors(kategori.nama).text]"
+                @click.stop="goToSubKategoriLogin(sub)"
+                class="px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 cursor-pointer"
+                :class="[
+                  sub.isActive
+                    ? [getColors(kategori.nama).bg, getColors(kategori.nama).text, 'hover:shadow-md hover:scale-105']
+                    : ['bg-gray-100 text-gray-400 hover:bg-gray-200']
+                ]"
               >
-                {{ sub.nama }}
-              </span>
+                <span class="flex items-center space-x-1">
+                  <span>{{ sub.nama }}</span>
+                  <span v-if="!sub.isActive" class="text-xs">(Coming Soon)</span>
+                </span>
+              </button>
             </div>
             <p class="text-gray-500 text-sm mt-3">
-              Klik untuk login sesuai posisi Anda
+              Klik posisi Anda untuk login
             </p>
           </div>
         </div>

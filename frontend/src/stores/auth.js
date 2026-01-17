@@ -13,6 +13,17 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!token.value && !!user.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
 
+  // Admin role helpers
+  const adminRole = computed(() => user.value?.adminRole || null)
+  const adminKepwil = computed(() => user.value?.kepwil || null)
+  const isSuperAdmin = computed(() => adminRole.value === 'SUPER_ADMIN')
+  const isAdminKP = computed(() => adminRole.value === 'ADMIN_KP')
+  const isAdminKepwil = computed(() => adminRole.value === 'ADMIN_KEPWIL')
+  const canAccessAllWilayah = computed(() => ['SUPER_ADMIN', 'ADMIN_KP'].includes(adminRole.value))
+  const canManageContent = computed(() => ['SUPER_ADMIN', 'ADMIN_KP'].includes(adminRole.value))
+  const canManageAdmin = computed(() => ['SUPER_ADMIN', 'ADMIN_KP'].includes(adminRole.value))
+  const canManageAccess = computed(() => adminRole.value === 'SUPER_ADMIN')
+
   async function login(npp) {
     loading.value = true
     error.value = null
@@ -56,7 +67,12 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await api.post('/auth/admin/login', { username, password })
       token.value = response.data.token
-      user.value = { ...response.data.admin, role: 'admin' }
+      user.value = {
+        ...response.data.admin,
+        role: 'admin',
+        adminRole: response.data.admin.role, // SUPER_ADMIN, ADMIN_KP, ADMIN_KEPWIL
+        kepwil: response.data.admin.kepwil
+      }
       localStorage.setItem('token', response.data.token)
       return true
     } catch (err) {
@@ -84,9 +100,18 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       const response = await api.get('/auth/me')
-      user.value = response.data.user
       if (response.data.role === 'admin') {
-        user.value.role = 'admin'
+        // For admin, save adminRole before setting user
+        const adminRole = response.data.user.role // SUPER_ADMIN, ADMIN_KP, ADMIN_KEPWIL
+        const kepwil = response.data.user.kepwil
+        user.value = {
+          ...response.data.user,
+          role: 'admin', // For isAdmin check compatibility
+          adminRole: adminRole,
+          kepwil: kepwil
+        }
+      } else {
+        user.value = response.data.user
       }
     } catch (err) {
       token.value = null
@@ -137,6 +162,17 @@ export const useAuthStore = defineStore('auth', () => {
     initialized,
     isAuthenticated,
     isAdmin,
+    // Admin role helpers
+    adminRole,
+    adminKepwil,
+    isSuperAdmin,
+    isAdminKP,
+    isAdminKepwil,
+    canAccessAllWilayah,
+    canManageContent,
+    canManageAdmin,
+    canManageAccess,
+    // Methods
     login,
     loginWithSubKategori,
     adminLogin,
