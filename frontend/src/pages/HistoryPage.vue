@@ -44,22 +44,15 @@ function getStatusBadge(status, progress) {
   return { text: 'Selesai', class: 'bg-gray-100 text-gray-700' }
 }
 
-function viewResult(periodeId) {
-  router.push(`/periode/${periodeId}/result`)
-}
-
 function goToPeriode(item) {
   if (item.userProgress.testCompleted) {
-    // Sudah selesai test, lihat hasil
     router.push(`/periode/${item.id}/result`)
   } else if (item.status === 'aktif') {
-    // Masih aktif, lanjutkan
     const subKategoriId = authStore.user?.subKategori?.id
     if (subKategoriId) {
       router.push(`/sub-kategori/${subKategoriId}`)
     }
   } else {
-    // Periode sudah lewat, lihat hasil jika ada
     if (item.userProgress.hasilTest) {
       router.push(`/periode/${item.id}/result`)
     }
@@ -73,19 +66,41 @@ async function handleLogout() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+  <div class="min-h-screen bg-gray-50">
     <!-- Header -->
-    <header class="gradient-bpjs text-white py-8">
-      <div class="max-w-4xl mx-auto px-4">
+    <header class="bg-white border-b border-gray-200">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div class="flex items-center justify-between">
-          <div>
-            <h1 class="text-3xl font-bold mb-2">Riwayat Test</h1>
-            <p class="opacity-80">Lihat semua hasil test yang telah Anda selesaikan</p>
+          <div class="flex items-center space-x-4">
+            <router-link to="/">
+              <img src="/images/Asset2.png" alt="BPJS Kesehatan" class="h-10" />
+            </router-link>
+            <div class="hidden sm:block h-8 w-px bg-gray-200"></div>
+            <div class="hidden sm:block">
+              <nav class="flex items-center text-sm text-gray-500">
+                <router-link to="/" class="hover:text-green-600">Beranda</router-link>
+                <svg class="w-4 h-4 mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+                <span class="text-gray-900 font-medium">Riwayat Test</span>
+              </nav>
+            </div>
           </div>
-          <div class="text-right">
-            <p class="text-sm opacity-80">{{ authStore.user?.nama }}</p>
-            <p class="text-xs opacity-60">{{ authStore.user?.posisi }}</p>
-            <button @click="handleLogout" class="mt-2 text-sm underline opacity-80 hover:opacity-100">
+
+          <div class="flex items-center space-x-4">
+            <div class="flex items-center">
+              <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-2">
+                <span class="text-green-600 font-semibold text-sm">{{ authStore.user?.nama?.charAt(0) }}</span>
+              </div>
+              <div class="hidden md:block text-sm">
+                <p class="font-medium text-gray-900">{{ authStore.user?.nama }}</p>
+                <p class="text-gray-500 text-xs">{{ authStore.user?.posisi }}</p>
+              </div>
+            </div>
+            <button
+              @click="handleLogout"
+              class="text-sm text-gray-500 hover:text-red-600 transition-colors"
+            >
               Logout
             </button>
           </div>
@@ -93,13 +108,32 @@ async function handleLogout() {
       </div>
     </header>
 
-    <div class="max-w-4xl mx-auto px-4 py-8">
+    <!-- Hero Section -->
+    <section class="bg-gradient-to-br from-green-600 to-green-700 text-white py-10">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl md:text-3xl font-bold mb-2">Riwayat Test</h1>
+            <p class="text-white/80">Lihat semua hasil test yang telah Anda selesaikan</p>
+          </div>
+          <div class="hidden md:block">
+            <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+              <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- Back button -->
       <button
         @click="router.back()"
-        class="flex items-center text-gray-600 hover:text-bpjs-600 mb-6 transition-colors"
+        class="flex items-center text-gray-600 hover:text-green-600 mb-6 transition-colors text-sm"
       >
-        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
         Kembali
@@ -107,19 +141,29 @@ async function handleLogout() {
 
       <!-- Loading -->
       <div v-if="loading" class="flex justify-center py-20">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-bpjs-500"></div>
+        <div class="text-center">
+          <div class="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p class="text-gray-500">Memuat riwayat...</p>
+        </div>
       </div>
 
       <!-- Empty State -->
       <div v-else-if="history.length === 0" class="text-center py-20">
-        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-10 max-w-md mx-auto">
+          <div class="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">Belum Ada Riwayat</h3>
+          <p class="text-gray-500 mb-6">Anda belum menyelesaikan test apapun</p>
+          <router-link
+            to="/"
+            class="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors"
+          >
+            Mulai Test
+          </router-link>
         </div>
-        <h3 class="text-xl font-bold text-gray-800 mb-2">Belum Ada Riwayat</h3>
-        <p class="text-gray-500 mb-6">Anda belum menyelesaikan test apapun</p>
-        <router-link to="/" class="btn-primary">Mulai Test</router-link>
       </div>
 
       <!-- History List -->
@@ -127,14 +171,14 @@ async function handleLogout() {
         <div
           v-for="item in history"
           :key="item.id"
-          class="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl cursor-pointer transition-all duration-300"
+          class="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-green-200 hover:shadow-lg cursor-pointer transition-all duration-300"
           @click="goToPeriode(item)"
         >
           <div class="p-6">
             <div class="flex items-center justify-between">
               <div class="flex items-center space-x-4">
                 <!-- Icon -->
-                <div class="w-14 h-14 gradient-bpjs rounded-xl flex items-center justify-center flex-shrink-0">
+                <div class="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
                   <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
@@ -142,23 +186,19 @@ async function handleLogout() {
 
                 <!-- Info -->
                 <div>
-                  <h3 class="font-bold text-lg text-gray-800">{{ item.nama }}</h3>
-                  <div class="flex items-center space-x-3 mt-1">
-                    <span class="text-sm text-gray-500">
-                      <span class="inline-flex items-center">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                        </svg>
-                        {{ item.jumlahMateri }} materi
-                      </span>
+                  <h3 class="font-bold text-lg text-gray-900">{{ item.nama }}</h3>
+                  <div class="flex items-center space-x-4 mt-1">
+                    <span class="text-sm text-gray-500 flex items-center">
+                      <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      </svg>
+                      {{ item.jumlahMateri }} materi
                     </span>
-                    <span class="text-sm text-gray-500">
-                      <span class="inline-flex items-center">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {{ item.jumlahSoal }} soal
-                      </span>
+                    <span class="text-sm text-gray-500 flex items-center">
+                      <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {{ item.jumlahSoal }} soal
                     </span>
                   </div>
                   <!-- Status Badge -->
@@ -203,13 +243,13 @@ async function handleLogout() {
             </div>
             <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div
-                class="h-full bg-gradient-to-r from-bpjs-400 to-bpjs-600 transition-all duration-500"
+                class="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-500"
                 :style="{ width: item.userProgress.materiCompleted ? '50%' : '0%' }"
               ></div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   </div>
 </template>

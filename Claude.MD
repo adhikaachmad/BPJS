@@ -41,6 +41,25 @@ Ada 3 level admin:
 
 ## Perubahan Terbaru
 
+### 2026-01-18: UI Improvement & Homepage Redesign
+
+#### 1. HomePage.vue - Redesign
+- **Hero Section**: Menggunakan Asset3.png sebagai background dengan Asset1.png sebagai welcome badge
+- **Categories Section**: Simplified design - gambar, judul, dan tombol MASUK
+- **Cara Kerja Section**: 4 langkah mudah (Baca Materi → Kerjakan Test → Lihat Pembahasan → Dapatkan Hasil)
+- **CTA Section**: Hanya satu tombol "Mulai Sekarang" (button Login Admin dihapus)
+- **Footer**: Simplified - logo dan copyright saja
+
+#### 2. Period Pages - Corporate Theme
+- **MateriPeriodePage.vue**: Violet/purple theme dengan progress bar dan navigasi
+- **QuizPeriodePage.vue**: Blue/indigo theme dengan soal navigator
+- **ResultPeriodePage.vue**: Teal/cyan theme dengan score visualization dan review mode
+
+#### 3. Cleanup
+- Removed unused CSS animations dan scroll effects dari HomePage
+- Simplified kategoriConfig (hanya displayName dan image)
+- Removed grid pattern, replaced with background image
+
 ### 2026-01-17: Step Config & History Update
 
 #### 1. StepConfig (Menggantikan Modul Lama)

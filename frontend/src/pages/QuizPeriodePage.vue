@@ -137,58 +137,73 @@ function goBack() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-100">
+  <div class="min-h-screen bg-gray-50">
     <!-- Loading State -->
     <div v-if="loading" class="flex justify-center items-center min-h-screen">
       <div class="text-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
         <p class="text-gray-500">Memuat soal...</p>
       </div>
     </div>
 
     <!-- Error State -->
     <div v-else-if="error" class="flex flex-col justify-center items-center min-h-screen p-4">
-      <div class="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
-        <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 max-w-md text-center">
+        <div class="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
           <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <p class="text-red-500 mb-4">{{ error }}</p>
-        <button @click="router.back()" class="btn-primary">Kembali</button>
+        <p class="text-red-600 mb-4">{{ error }}</p>
+        <button @click="router.back()" class="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors">
+          Kembali
+        </button>
       </div>
     </div>
 
     <!-- Quiz Interface -->
     <template v-else>
       <!-- Header -->
-      <header class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg sticky top-0 z-20">
-        <div class="max-w-5xl mx-auto px-4 py-4">
+      <header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div class="flex items-center justify-between">
-            <div>
-              <button @click="goBack" class="flex items-center text-white/80 hover:text-white transition-colors mb-1">
-                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            <div class="flex items-center space-x-4">
+              <button @click="goBack" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                Keluar
               </button>
-              <h1 class="text-xl font-bold">Test {{ periodeName }}</h1>
+              <div class="h-8 w-px bg-gray-200"></div>
+              <div>
+                <p class="text-sm text-gray-500">Test Periode</p>
+                <h1 class="text-lg font-bold text-gray-900">{{ periodeName }}</h1>
+              </div>
             </div>
 
-            <div class="text-right">
-              <p class="text-sm opacity-80">Dijawab</p>
-              <p class="text-2xl font-bold">{{ answeredCount }} / {{ soals.length }}</p>
+            <div class="flex items-center space-x-4">
+              <div class="text-right">
+                <p class="text-sm text-gray-500">Progress</p>
+                <p class="text-lg font-bold text-blue-600">{{ answeredCount }} / {{ soals.length }}</p>
+              </div>
+              <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       <!-- Progress Bar -->
-      <div class="bg-white border-b border-gray-200 sticky top-[76px] z-10">
-        <div class="max-w-5xl mx-auto px-4 py-3">
+      <div class="bg-white border-b border-gray-200 sticky top-[73px] z-10">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-gray-600">
+            <span class="text-sm font-medium text-gray-700">
               Soal {{ currentSoalIndex + 1 }} dari {{ soals.length }}
+            </span>
+            <span class="text-sm font-medium text-blue-600">
+              {{ Math.round(((currentSoalIndex + 1) / soals.length) * 100) }}%
             </span>
           </div>
           <div class="w-full bg-gray-200 rounded-full h-2">
@@ -201,14 +216,22 @@ function goBack() {
       </div>
 
       <!-- Main Content -->
-      <main class="max-w-5xl mx-auto px-4 py-8">
+      <main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <!-- Soal Card -->
-        <div v-if="currentSoal" class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+        <div v-if="currentSoal" class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden mb-6">
           <!-- Soal Header -->
-          <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-blue-100">
-            <span class="inline-block px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-full">
-              Soal {{ currentSoalIndex + 1 }}
-            </span>
+          <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+            <div class="flex items-center justify-between">
+              <span class="inline-flex items-center px-3 py-1 bg-white/20 text-white text-sm font-medium rounded-lg">
+                Soal {{ currentSoalIndex + 1 }}
+              </span>
+              <span v-if="jawabans[currentSoal.id]" class="inline-flex items-center text-white/80 text-sm">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                Dijawab
+              </span>
+            </div>
           </div>
 
           <!-- Pertanyaan -->
@@ -223,21 +246,21 @@ function goBack() {
                 @click="selectAnswer(key)"
                 class="w-full p-4 text-left rounded-xl border-2 transition-all duration-200"
                 :class="{
-                  'border-blue-500 bg-blue-50 text-blue-700': jawabans[currentSoal.id] === key,
+                  'border-blue-500 bg-blue-50': jawabans[currentSoal.id] === key,
                   'border-gray-200 hover:border-blue-300 hover:bg-gray-50': jawabans[currentSoal.id] !== key
                 }"
               >
                 <div class="flex items-start">
                   <span
-                    class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mr-3 flex-shrink-0"
+                    class="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold mr-4 flex-shrink-0 transition-colors"
                     :class="{
-                      'bg-blue-500 text-white': jawabans[currentSoal.id] === key,
-                      'bg-gray-200 text-gray-600': jawabans[currentSoal.id] !== key
+                      'bg-blue-600 text-white': jawabans[currentSoal.id] === key,
+                      'bg-gray-100 text-gray-600': jawabans[currentSoal.id] !== key
                     }"
                   >
                     {{ key }}
                   </span>
-                  <span class="text-gray-700">{{ option }}</span>
+                  <span class="text-gray-700 pt-2">{{ option }}</span>
                 </div>
               </button>
             </div>
@@ -249,7 +272,7 @@ function goBack() {
           <button
             @click="prevSoal"
             :disabled="isFirstSoal"
-            class="flex items-center px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200 transition-colors"
+            class="flex items-center px-6 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 hover:border-gray-300 transition-all"
           >
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -260,7 +283,7 @@ function goBack() {
           <button
             v-if="isLastSoal"
             @click="openConfirmSubmit"
-            class="flex items-center px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-medium shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all"
+            class="flex items-center px-8 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-all"
           >
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -271,7 +294,7 @@ function goBack() {
           <button
             v-else
             @click="nextSoal"
-            class="flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all"
+            class="flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all"
           >
             Selanjutnya
             <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -281,8 +304,8 @@ function goBack() {
         </div>
 
         <!-- Soal Navigator -->
-        <div class="bg-white rounded-2xl shadow-lg p-6">
-          <h3 class="text-lg font-bold text-gray-800 mb-4">Navigasi Soal</h3>
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+          <h3 class="text-lg font-bold text-gray-900 mb-4">Navigasi Soal</h3>
           <div class="grid grid-cols-5 sm:grid-cols-10 gap-2">
             <button
               v-for="(soal, index) in soals"
@@ -290,7 +313,7 @@ function goBack() {
               @click="goToSoal(index)"
               class="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-medium transition-all"
               :class="{
-                'bg-blue-500 text-white': index === currentSoalIndex,
+                'bg-blue-600 text-white ring-2 ring-blue-300': index === currentSoalIndex,
                 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200': jawabans[soal.id] && index !== currentSoalIndex,
                 'bg-gray-100 text-gray-600 hover:bg-gray-200': !jawabans[soal.id] && index !== currentSoalIndex
               }"
@@ -299,17 +322,17 @@ function goBack() {
             </button>
           </div>
 
-          <div class="flex items-center justify-center space-x-6 mt-4 text-sm text-gray-500">
-            <div class="flex items-center">
+          <div class="flex items-center justify-center space-x-6 mt-6 pt-4 border-t border-gray-100">
+            <div class="flex items-center text-sm text-gray-500">
               <span class="w-4 h-4 bg-emerald-100 rounded mr-2"></span>
               Sudah dijawab
             </div>
-            <div class="flex items-center">
+            <div class="flex items-center text-sm text-gray-500">
               <span class="w-4 h-4 bg-gray-100 rounded mr-2"></span>
               Belum dijawab
             </div>
-            <div class="flex items-center">
-              <span class="w-4 h-4 bg-blue-500 rounded mr-2"></span>
+            <div class="flex items-center text-sm text-gray-500">
+              <span class="w-4 h-4 bg-blue-600 rounded mr-2"></span>
               Soal sekarang
             </div>
           </div>
@@ -325,47 +348,62 @@ function goBack() {
           class="fixed inset-0 z-50 flex items-center justify-center p-4"
           @click.self="closeConfirmSubmit"
         >
-          <div class="absolute inset-0 bg-black/50"></div>
+          <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
 
-          <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">Konfirmasi Submit</h3>
-
-            <div class="mb-6">
-              <p class="text-gray-600 mb-4">Apakah Anda yakin ingin menyelesaikan test ini?</p>
-
-              <div class="bg-gray-50 rounded-xl p-4">
-                <div class="flex justify-between mb-2">
-                  <span class="text-gray-600">Total Soal</span>
-                  <span class="font-bold">{{ soals.length }}</span>
-                </div>
-                <div class="flex justify-between mb-2">
-                  <span class="text-emerald-600">Sudah Dijawab</span>
-                  <span class="font-bold text-emerald-600">{{ answeredCount }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-red-600">Belum Dijawab</span>
-                  <span class="font-bold text-red-600">{{ unansweredCount }}</span>
-                </div>
+          <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200">
+            <div class="text-center mb-6">
+              <div class="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </div>
+              <h3 class="text-xl font-bold text-gray-900">Konfirmasi Submit</h3>
+              <p class="text-gray-500 mt-2">Apakah Anda yakin ingin menyelesaikan test ini?</p>
+            </div>
 
-              <p v-if="unansweredCount > 0" class="text-amber-600 text-sm mt-3">
-                Perhatian: Masih ada {{ unansweredCount }} soal yang belum dijawab!
+            <div class="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-100">
+              <div class="flex justify-between mb-2">
+                <span class="text-gray-600">Total Soal</span>
+                <span class="font-bold text-gray-900">{{ soals.length }}</span>
+              </div>
+              <div class="flex justify-between mb-2">
+                <span class="text-emerald-600">Sudah Dijawab</span>
+                <span class="font-bold text-emerald-600">{{ answeredCount }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-red-600">Belum Dijawab</span>
+                <span class="font-bold text-red-600">{{ unansweredCount }}</span>
+              </div>
+            </div>
+
+            <div v-if="unansweredCount > 0" class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-6">
+              <p class="text-amber-700 text-sm flex items-center">
+                <svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Masih ada {{ unansweredCount }} soal yang belum dijawab!
               </p>
             </div>
 
             <div class="flex space-x-3">
               <button
                 @click="closeConfirmSubmit"
-                class="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                class="flex-1 px-4 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
               >
                 Batal
               </button>
               <button
                 @click="submitTest"
                 :disabled="submitting"
-                class="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl disabled:opacity-50 transition-all"
+                class="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 disabled:opacity-50 transition-all"
               >
-                <span v-if="submitting">Menyimpan...</span>
+                <span v-if="submitting" class="flex items-center justify-center">
+                  <svg class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Menyimpan...
+                </span>
                 <span v-else>Ya, Submit</span>
               </button>
             </div>

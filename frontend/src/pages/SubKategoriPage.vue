@@ -15,14 +15,12 @@ const loading = ref(true)
 const error = ref(null)
 const noPeriode = ref(false)
 
-// Step definitions for learning flow - now dynamic from API
 const steps = computed(() => {
   if (!activePeriode.value || stepConfigs.value.length === 0) return []
 
   const periode = activePeriode.value
   const progress = periode.userProgress || {}
 
-  // Find step config by id
   const getConfig = (id) => stepConfigs.value.find(s => s.id === id) || {}
 
   const materiConfig = getConfig('materi')
@@ -36,11 +34,13 @@ const steps = computed(() => {
       name: materiConfig.nama || 'Kupas Tuntas',
       description: materiConfig.deskripsi || 'Pelajari materi untuk mempersiapkan test',
       icon: materiConfig.icon || '',
-      gradient: `from-${materiConfig.gradientFrom || 'violet-500'} to-${materiConfig.gradientTo || 'purple-600'}`,
+      gradient: 'from-violet-500 to-purple-600',
+      bgLight: 'bg-violet-50',
+      textColor: 'text-violet-600',
       count: periode.jumlahMateri,
       countLabel: 'materi',
       completed: progress.materiCompleted,
-      canAccess: true, // Materi always accessible
+      canAccess: true,
       status: progress.materiCompleted ? 'Selesai' : 'Baca Materi',
       action: () => router.push(`/periode/${periode.id}/materi`)
     },
@@ -49,7 +49,9 @@ const steps = computed(() => {
       name: testConfig.nama || 'JITU',
       description: testConfig.deskripsi || 'Kerjakan soal-soal test untuk menguji pemahaman',
       icon: testConfig.icon || '',
-      gradient: `from-${testConfig.gradientFrom || 'blue-500'} to-${testConfig.gradientTo || 'indigo-600'}`,
+      gradient: 'from-blue-500 to-indigo-600',
+      bgLight: 'bg-blue-50',
+      textColor: 'text-blue-600',
       count: periode.jumlahSoal,
       countLabel: 'soal',
       completed: progress.testCompleted,
@@ -64,7 +66,9 @@ const steps = computed(() => {
       name: docheckConfig.nama || 'Do-Check',
       description: docheckConfig.deskripsi || 'Lihat koreksi dan pembahasan jawaban test',
       icon: docheckConfig.icon || '',
-      gradient: `from-${docheckConfig.gradientFrom || 'teal-500'} to-${docheckConfig.gradientTo || 'cyan-600'}`,
+      gradient: 'from-teal-500 to-cyan-600',
+      bgLight: 'bg-teal-50',
+      textColor: 'text-teal-600',
       count: progress.hasilTest?.benar || 0,
       countLabel: 'benar',
       completed: progress.testCompleted && (periode.status === 'docheck' || periode.status === 'selesai'),
@@ -77,7 +81,9 @@ const steps = computed(() => {
       name: rekapConfig.nama || 'Rekapin',
       description: rekapConfig.deskripsi || 'Lihat rekap progress dan hasil pembelajaran',
       icon: rekapConfig.icon || '',
-      gradient: `from-${rekapConfig.gradientFrom || 'amber-500'} to-${rekapConfig.gradientTo || 'orange-600'}`,
+      gradient: 'from-amber-500 to-orange-600',
+      bgLight: 'bg-amber-50',
+      textColor: 'text-amber-600',
       count: progress.hasilTest ? Math.round(progress.hasilTest.skor) : 0,
       countLabel: 'skor',
       completed: progress.testCompleted,
@@ -98,7 +104,6 @@ async function loadData() {
   noPeriode.value = false
 
   try {
-    // Fetch step configs and sub-kategori info in parallel
     const [stepConfigRes, subKategoriRes] = await Promise.all([
       api.get('/step-config'),
       api.get(`/kategori/sub-kategori/${route.params.subKategoriId}`)
@@ -107,7 +112,6 @@ async function loadData() {
     stepConfigs.value = stepConfigRes.data
     subKategori.value = subKategoriRes.data
 
-    // Get active periode for user
     try {
       const periodeRes = await api.get('/periode/user/active')
       activePeriode.value = periodeRes.data
@@ -209,63 +213,95 @@ async function handleLogout() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+  <div class="min-h-screen bg-gray-50">
     <!-- Loading State -->
     <div v-if="loading" class="flex justify-center items-center min-h-screen">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-bpjs-500"></div>
+      <div class="text-center">
+        <div class="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
+        <p class="text-gray-500">Memuat data...</p>
+      </div>
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error" class="flex flex-col justify-center items-center min-h-screen">
-      <p class="text-red-500 mb-4">{{ error }}</p>
-      <button @click="loadData" class="btn-primary">Coba Lagi</button>
+    <div v-else-if="error" class="flex flex-col justify-center items-center min-h-screen p-4">
+      <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 max-w-md text-center">
+        <div class="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p class="text-red-600 mb-4">{{ error }}</p>
+        <button @click="loadData" class="px-6 py-2.5 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors">
+          Coba Lagi
+        </button>
+      </div>
     </div>
 
     <template v-else>
-      <!-- Hero Banner -->
-      <section class="gradient-bpjs text-white py-16 relative overflow-hidden">
-        <div class="absolute inset-0 opacity-10">
-          <div class="absolute top-0 right-0 w-96 h-96 bg-white rounded-full transform translate-x-1/3 -translate-y-1/3"></div>
-          <div class="absolute bottom-0 left-0 w-64 h-64 bg-white rounded-full transform -translate-x-1/3 translate-y-1/3"></div>
-        </div>
-
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <!-- Breadcrumb -->
-          <div class="flex items-center text-sm mb-6">
-            <router-link to="/" class="text-white/70 hover:text-white transition-colors">
-              Beranda
-            </router-link>
-            <svg class="w-4 h-4 mx-2 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-            </svg>
-            <router-link v-if="subKategori?.kategori" :to="`/kategori/${subKategori.kategori.id}`" class="text-white/70 hover:text-white transition-colors">
-              {{ subKategori.kategori.nama }}
-            </router-link>
-            <svg class="w-4 h-4 mx-2 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-            </svg>
-            <span class="text-white">{{ subKategori?.nama }}</span>
-          </div>
-
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between">
-            <div class="text-center md:text-left">
-              <div v-if="subKategori?.kategori" class="inline-flex items-center px-4 py-2 bg-white/20 rounded-full text-sm mb-4">
-                {{ subKategori.kategori.nama }}
+      <!-- Header -->
+      <header class="bg-white border-b border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+              <router-link to="/">
+                <img src="/images/Asset2.png" alt="BPJS Kesehatan" class="h-10" />
+              </router-link>
+              <div class="hidden sm:block h-8 w-px bg-gray-200"></div>
+              <div class="hidden sm:block">
+                <nav class="flex items-center text-sm text-gray-500">
+                  <router-link to="/" class="hover:text-green-600">Beranda</router-link>
+                  <svg class="w-4 h-4 mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span class="text-gray-900 font-medium">{{ subKategori?.nama }}</span>
+                </nav>
               </div>
-              <h1 class="text-4xl md:text-5xl font-bold mb-4">{{ subKategori?.nama }}</h1>
-              <p v-if="activePeriode" class="text-lg opacity-80 max-w-2xl">
-                Periode: <span class="font-semibold">{{ activePeriode.nama }}</span>
-              </p>
             </div>
 
-            <!-- User Info -->
-            <div v-if="authStore.isAuthenticated" class="mt-6 md:mt-0 bg-white/20 rounded-xl p-4 text-center md:text-right">
-              <p class="text-sm opacity-80">Login sebagai:</p>
-              <p class="font-bold text-lg">{{ authStore.user?.nama }}</p>
-              <p class="text-sm opacity-80">{{ authStore.user?.posisi }}</p>
-              <button @click="handleLogout" class="mt-2 text-sm underline opacity-80 hover:opacity-100">
+            <!-- User Menu -->
+            <div v-if="authStore.isAuthenticated" class="flex items-center space-x-4">
+              <router-link
+                to="/history"
+                class="text-sm text-gray-600 hover:text-green-600 transition-colors flex items-center"
+              >
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Riwayat
+              </router-link>
+              <div class="h-6 w-px bg-gray-200"></div>
+              <div class="flex items-center">
+                <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-2">
+                  <span class="text-green-600 font-semibold text-sm">{{ authStore.user?.nama?.charAt(0) }}</span>
+                </div>
+                <div class="hidden md:block text-sm">
+                  <p class="font-medium text-gray-900">{{ authStore.user?.nama }}</p>
+                  <p class="text-gray-500 text-xs">{{ authStore.user?.posisi }}</p>
+                </div>
+              </div>
+              <button
+                @click="handleLogout"
+                class="text-sm text-gray-500 hover:text-red-600 transition-colors"
+              >
                 Logout
               </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Hero Section -->
+      <section class="bg-gradient-to-br from-green-600 to-green-700 text-white py-12">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+              <div v-if="subKategori?.kategori" class="inline-flex items-center px-3 py-1 bg-white/20 rounded-full text-sm mb-4">
+                {{ subKategori.kategori.nama }}
+              </div>
+              <h1 class="text-3xl md:text-4xl font-bold mb-2">{{ subKategori?.nama }}</h1>
+              <p v-if="activePeriode" class="text-white/80">
+                Periode: <span class="font-medium">{{ activePeriode.nama }}</span>
+              </p>
             </div>
           </div>
         </div>
@@ -273,19 +309,19 @@ async function handleLogout() {
 
       <!-- No Periode State -->
       <section v-if="noPeriode" class="py-20">
-        <div class="max-w-2xl mx-auto px-4 text-center">
-          <div class="bg-white rounded-2xl shadow-xl p-12">
-            <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <div class="max-w-md mx-auto px-4 text-center">
+          <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-10">
+            <div class="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
               <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Belum Ada Periode Aktif</h2>
+            <h2 class="text-xl font-bold text-gray-900 mb-3">Belum Ada Periode Aktif</h2>
             <p class="text-gray-600 mb-6">
               Saat ini belum ada periode test yang dijadwalkan untuk kategori Anda.
               Silakan tunggu pengumuman jadwal dari admin.
             </p>
-            <button @click="loadData" class="btn-primary">
+            <button @click="loadData" class="px-6 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors">
               Refresh
             </button>
           </div>
@@ -295,17 +331,17 @@ async function handleLogout() {
       <!-- Learning Flow -->
       <template v-else-if="activePeriode">
         <!-- Progress Steps -->
-        <section class="py-6 bg-white border-b border-gray-200">
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-center space-x-2 md:space-x-4 text-sm overflow-x-auto">
+        <section class="bg-white border-b border-gray-200 py-4">
+          <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-center space-x-2 md:space-x-4 overflow-x-auto">
               <template v-for="(step, index) in steps" :key="step.id">
                 <div
-                  class="flex items-center whitespace-nowrap"
-                  :class="step.completed ? 'text-emerald-600' : step.canAccess ? 'text-blue-600' : 'text-gray-400'"
+                  class="flex items-center whitespace-nowrap text-sm"
+                  :class="step.completed ? 'text-green-600' : step.canAccess ? 'text-blue-600' : 'text-gray-400'"
                 >
                   <span
-                    class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-2"
-                    :class="step.completed ? 'bg-emerald-100' : step.canAccess ? 'bg-blue-100' : 'bg-gray-100'"
+                    class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mr-2"
+                    :class="step.completed ? 'bg-green-100' : step.canAccess ? 'bg-blue-100' : 'bg-gray-100'"
                   >
                     <svg v-if="step.completed" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -314,7 +350,7 @@ async function handleLogout() {
                   </span>
                   <span class="font-medium">{{ step.name }}</span>
                 </div>
-                <svg v-if="index < steps.length - 1" class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-if="index < steps.length - 1" class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
               </template>
@@ -324,9 +360,9 @@ async function handleLogout() {
 
         <!-- Cards Section -->
         <section class="py-12">
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-10">
-              <h2 class="text-2xl font-bold text-gray-800 mb-2">Pilih Modul Pembelajaran</h2>
+              <h2 class="text-2xl font-bold text-gray-900 mb-2">Pilih Modul Pembelajaran</h2>
               <p class="text-gray-600">Ikuti urutan pembelajaran untuk hasil yang optimal</p>
             </div>
 
@@ -334,25 +370,22 @@ async function handleLogout() {
               <div
                 v-for="step in steps"
                 :key="step.id"
-                class="bg-white rounded-2xl shadow-lg overflow-hidden border-2 transition-all duration-300"
+                class="bg-white rounded-2xl border-2 overflow-hidden transition-all duration-300"
                 :class="{
-                  'border-transparent hover:shadow-xl cursor-pointer': step.canAccess,
-                  'border-gray-200 opacity-60': !step.canAccess
+                  'border-gray-200 hover:border-green-200 hover:shadow-lg cursor-pointer': step.canAccess,
+                  'border-gray-100 opacity-60': !step.canAccess
                 }"
                 @click="handleStepClick(step)"
               >
                 <!-- Card Header -->
-                <div
-                  class="p-6 text-white"
-                  :class="`bg-gradient-to-br ${step.gradient}`"
-                >
+                <div class="p-5 text-white bg-gradient-to-br" :class="step.gradient">
                   <div class="opacity-90" v-html="step.icon"></div>
-                  <h3 class="text-xl font-bold mt-4">{{ step.name }}</h3>
+                  <h3 class="text-lg font-bold mt-3">{{ step.name }}</h3>
                 </div>
 
                 <!-- Card Content -->
                 <div class="p-5">
-                  <p class="text-gray-600 text-sm mb-4">{{ step.description }}</p>
+                  <p class="text-gray-600 text-sm mb-4 line-clamp-2">{{ step.description }}</p>
 
                   <!-- Info -->
                   <div class="flex items-center justify-between text-sm text-gray-500 mb-4">
@@ -362,7 +395,7 @@ async function handleLogout() {
                       </svg>
                       {{ step.count }} {{ step.countLabel }}
                     </span>
-                    <span v-if="step.completed" class="flex items-center text-emerald-600">
+                    <span v-if="step.completed" class="flex items-center text-green-600">
                       <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
@@ -372,9 +405,9 @@ async function handleLogout() {
 
                   <!-- Action Button -->
                   <button
-                    class="w-full py-3 rounded-xl font-semibold transition-all duration-300"
+                    class="w-full py-2.5 rounded-xl font-medium text-sm transition-all duration-300"
                     :class="{
-                      'bg-gradient-to-r text-white shadow-lg hover:shadow-xl': step.canAccess,
+                      'bg-gradient-to-r text-white': step.canAccess,
                       [step.gradient]: step.canAccess,
                       'bg-gray-100 text-gray-400 cursor-not-allowed': !step.canAccess
                     }"
@@ -385,10 +418,7 @@ async function handleLogout() {
 
                   <!-- Schedule Info -->
                   <div v-if="step.scheduleInfo" class="mt-3 text-center">
-                    <span
-                      class="inline-flex items-center text-xs px-2 py-1 rounded-full"
-                      :class="step.statusClass"
-                    >
+                    <span class="inline-flex items-center text-xs px-2 py-1 rounded-full" :class="step.statusClass">
                       <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
@@ -411,25 +441,25 @@ async function handleLogout() {
           </div>
         </section>
 
-        <!-- Hasil Test Summary (if completed) -->
+        <!-- Result Summary (if completed) -->
         <section v-if="activePeriode.userProgress?.hasilTest" class="py-8 bg-white border-t border-gray-200">
           <div class="max-w-4xl mx-auto px-4">
-            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6">
-              <h3 class="text-lg font-bold text-gray-800 mb-4">Hasil Test Anda</h3>
+            <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
+              <h3 class="text-lg font-bold text-gray-900 mb-4">Hasil Test Anda</h3>
               <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="bg-white rounded-xl p-4 text-center">
-                  <p class="text-3xl font-bold text-emerald-600">{{ activePeriode.userProgress.hasilTest.skor?.toFixed(0) }}</p>
+                <div class="bg-white rounded-xl p-4 text-center shadow-sm">
+                  <p class="text-3xl font-bold text-green-600">{{ activePeriode.userProgress.hasilTest.skor?.toFixed(0) }}</p>
                   <p class="text-sm text-gray-500">Skor</p>
                 </div>
-                <div class="bg-white rounded-xl p-4 text-center">
+                <div class="bg-white rounded-xl p-4 text-center shadow-sm">
                   <p class="text-3xl font-bold text-green-600">{{ activePeriode.userProgress.hasilTest.benar }}</p>
                   <p class="text-sm text-gray-500">Benar</p>
                 </div>
-                <div class="bg-white rounded-xl p-4 text-center">
+                <div class="bg-white rounded-xl p-4 text-center shadow-sm">
                   <p class="text-3xl font-bold text-red-600">{{ activePeriode.userProgress.hasilTest.salah }}</p>
                   <p class="text-sm text-gray-500">Salah</p>
                 </div>
-                <div class="bg-white rounded-xl p-4 text-center">
+                <div class="bg-white rounded-xl p-4 text-center shadow-sm">
                   <p class="text-3xl font-bold text-gray-600">{{ activePeriode.userProgress.hasilTest.tidakDijawab }}</p>
                   <p class="text-sm text-gray-500">Tidak Dijawab</p>
                 </div>
