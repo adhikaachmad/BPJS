@@ -66,6 +66,36 @@ const provinsiList = [
   'Papua', 'Papua Barat', 'Papua Selatan', 'Papua Tengah', 'Papua Pegunungan', 'Papua Barat Daya'
 ]
 
+// BPJS Kedeputian Wilayah → daftar provinsi yang dicakup.
+// Pemetaan ini diturunkan secara empiris dari data production: setiap
+// KantorCabang dipetakan ke provinsinya berdasarkan nama kota/kabupaten,
+// lalu provinsi diasosiasikan dengan kepwil pemilik KC tersebut.
+// Coverage saat derive: 125/130 KC (96%). Lihat scripts/derive-kepwil-mapping.js
+// untuk regenerate kalau struktur wilayah berubah.
+const kepwilToProvinces = {
+  'I':    ['Aceh', 'Sumatera Utara'],
+  'II':   ['Jambi', 'Kepulauan Riau', 'Riau', 'Sumatera Barat'],
+  'III':  ['Bengkulu', 'Kepulauan Bangka Belitung', 'Lampung', 'Sumatera Selatan'],
+  'IV':   ['Banten', 'DKI Jakarta', 'Kalimantan Barat'],
+  'V':    ['Jawa Barat'],
+  'VI':   ['Daerah Istimewa Yogyakarta', 'Jawa Tengah'],
+  'VII':  ['Jawa Timur'],
+  'VIII': ['Kalimantan Selatan', 'Kalimantan Tengah', 'Kalimantan Timur', 'Kalimantan Utara'],
+  'IX':   ['Maluku', 'Sulawesi Barat', 'Sulawesi Selatan', 'Sulawesi Tenggara'],
+  'X':    ['Gorontalo', 'Maluku Utara', 'Sulawesi Tengah', 'Sulawesi Utara'],
+  'XI':   ['Bali', 'Nusa Tenggara Barat', 'Nusa Tenggara Timur'],
+  'XII':  ['Papua', 'Papua Barat', 'Papua Pegunungan', 'Papua Selatan']
+}
+
+// Reverse: provinsi → nama Kepwil (untuk lookup saat user klik provinsi di peta)
+const provinceToKepwil = {}
+Object.entries(kepwilToProvinces).forEach(([kw, provs]) => {
+  provs.forEach(p => { provinceToKepwil[p] = kw })
+})
+
+// Urutan kanonik Kepwil I → XII untuk dropdown filter
+const KEPWIL_ORDER = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+
 // Filters
 const filters = ref({
   dateFrom: '',
@@ -76,9 +106,26 @@ const filters = ref({
 })
 
 // Filter options (derived from data)
+const kepwilList = computed(() => {
+  const set = new Set()
+  usersWithProgress.value.forEach(u => { if (u.kepwil) set.add(u.kepwil) })
+  // Sort by canonical Roman numeral order; unknown values fall to the end alphabetically
+  return Array.from(set).sort((a, b) => {
+    const ai = KEPWIL_ORDER.indexOf(a)
+    const bi = KEPWIL_ORDER.indexOf(b)
+    if (ai === -1 && bi === -1) return a.localeCompare(b)
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
+})
+
 const kcFilterList = computed(() => {
   const cabangSet = new Set()
   usersWithProgress.value.forEach(u => {
+    // Only show KCs from users that match the active Kepwil filter (if any),
+    // so the KC dropdown stays scoped to the selected wilayah.
+    if (filters.value.kepwil && u.kepwil !== filters.value.kepwil) return
     if (u.kc) cabangSet.add(u.kc)
   })
   return Array.from(cabangSet).sort()
@@ -212,6 +259,12 @@ const totalUserPages = computed(() => {
 watch([filters, userSearch], () => {
   userPage.value = 1
 }, { deep: true })
+
+// When Kepwil filter changes, reset KC because the KC list is scoped to Kepwil.
+// (Without this, a stale KC selection would silently filter out all rows.)
+watch(() => filters.value.kepwil, () => {
+  filters.value.kc = ''
+})
 
 // Score Distribution Chart
 const scoreDistributionData = computed(() => {
@@ -396,14 +449,17 @@ const indonesiaRegions = {
   'Papua': ['Papua', 'Papua Barat', 'Papua Selatan', 'Papua Tengah', 'Papua Pegunungan', 'Papua Barat Daya']
 }
 
-// Map data computed from users
+// Map data — keyed by Kepwil name ("I"..."XII"). Each entry aggregates
+// all users that belong to that Kepwil. The map widget below paints every
+// province in the same Kepwil with the same color (using kepwilToProvinces).
 const mapData = computed(() => {
-  const provinceData = {}
+  const data = {}
 
-  // Initialize all provinces
-  provinsiList.forEach(prov => {
-    provinceData[prov] = {
-      name: prov,
+  // Initialize all known Kepwils, even ones with zero users, so the dropdown
+  // and detail panel can still resolve them.
+  KEPWIL_ORDER.forEach(kw => {
+    data[kw] = {
+      name: kw,
       totalUsers: 0,
       materiCompleted: 0,
       testCompleted: 0,
@@ -413,28 +469,26 @@ const mapData = computed(() => {
     }
   })
 
-  // Populate with user data
   usersWithProgress.value.forEach(user => {
-    const prov = user.kepwil
-    if (prov && provinceData[prov]) {
-      provinceData[prov].totalUsers++
-      if (user.materiCompleted) provinceData[prov].materiCompleted++
-      if (user.testCompleted) provinceData[prov].testCompleted++
-      if (user.testScore !== null) {
-        provinceData[prov].totalScore += user.testScore
-        provinceData[prov].testedUsers++
-      }
+    const kw = user.kepwil
+    if (!kw) return
+    if (!data[kw]) {
+      data[kw] = { name: kw, totalUsers: 0, materiCompleted: 0, testCompleted: 0, totalScore: 0, testedUsers: 0, avgScore: 0 }
+    }
+    data[kw].totalUsers++
+    if (user.materiCompleted) data[kw].materiCompleted++
+    if (user.testCompleted) data[kw].testCompleted++
+    if (user.testScore !== null) {
+      data[kw].totalScore += user.testScore
+      data[kw].testedUsers++
     }
   })
 
-  // Calculate averages
-  Object.values(provinceData).forEach(data => {
-    if (data.testedUsers > 0) {
-      data.avgScore = data.totalScore / data.testedUsers
-    }
+  Object.values(data).forEach(d => {
+    if (d.testedUsers > 0) d.avgScore = d.totalScore / d.testedUsers
   })
 
-  return provinceData
+  return data
 })
 
 // Get color based on score
@@ -490,39 +544,28 @@ const regionStats = computed(() => {
   return stats
 })
 
-// ECharts Indonesia Map Options
+// ECharts Indonesia Map Options.
+// We have score data per Kepwil, but the GeoJSON renders provinces — so each
+// province inherits the score/aggregate of the Kepwil it belongs to via
+// provinceToKepwil. Hover tooltip surfaces the Kepwil name.
 const indonesiaMapOption = computed(() => {
-  // Prepare data for ECharts map
   const mapSeriesData = []
 
-  // Get all GeoJSON province names and aggregate data
-  const geoProvinceData = {}
-
-  Object.entries(mapData.value).forEach(([dbName, data]) => {
-    const geoName = provinceNameMap[dbName]
-    if (geoName) {
-      if (!geoProvinceData[geoName]) {
-        geoProvinceData[geoName] = { totalUsers: 0, testedUsers: 0, totalScore: 0, materiCompleted: 0, testCompleted: 0 }
-      }
-      geoProvinceData[geoName].totalUsers += data.totalUsers
-      geoProvinceData[geoName].testedUsers += data.testedUsers
-      geoProvinceData[geoName].totalScore += data.totalScore
-      geoProvinceData[geoName].materiCompleted += data.materiCompleted
-      geoProvinceData[geoName].testCompleted += data.testCompleted
-    }
-  })
-
-  // Convert to ECharts format
-  Object.entries(geoProvinceData).forEach(([geoName, data]) => {
-    const avgScore = data.testedUsers > 0 ? data.totalScore / data.testedUsers : 0
+  provinsiList.forEach(dbProv => {
+    const geoName = provinceNameMap[dbProv]
+    if (!geoName) return
+    const kw = provinceToKepwil[dbProv]
+    const kwData = kw ? mapData.value[kw] : null
     mapSeriesData.push({
       name: geoName,
-      value: avgScore,
-      totalUsers: data.totalUsers,
-      testedUsers: data.testedUsers,
-      materiCompleted: data.materiCompleted,
-      testCompleted: data.testCompleted,
-      avgScore: avgScore
+      value: kwData ? kwData.avgScore : 0,
+      kepwil: kw || null,
+      provinceName: dbProv,
+      totalUsers: kwData?.totalUsers || 0,
+      testedUsers: kwData?.testedUsers || 0,
+      materiCompleted: kwData?.materiCompleted || 0,
+      testCompleted: kwData?.testCompleted || 0,
+      avgScore: kwData?.avgScore || 0
     })
   })
 
@@ -531,9 +574,11 @@ const indonesiaMapOption = computed(() => {
       trigger: 'item',
       formatter: (params) => {
         const data = params.data || {}
-        const dbName = geoJsonToDbName[params.name] || params.name
+        const provLabel = data.provinceName || geoJsonToDbName[params.name] || params.name
+        const kwLabel = data.kepwil ? `Kepwil ${data.kepwil}` : 'Tidak terpetakan'
         return `
-          <div style="font-weight: bold; margin-bottom: 8px;">${dbName}</div>
+          <div style="font-weight: bold; margin-bottom: 4px;">${provLabel}</div>
+          <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">${kwLabel}</div>
           <div>Total User: <b>${data.totalUsers || 0}</b></div>
           <div>Materi Selesai: <b>${data.materiCompleted || 0}</b></div>
           <div>Test Selesai: <b>${data.testCompleted || 0}</b></div>
@@ -587,13 +632,13 @@ const indonesiaMapOption = computed(() => {
   }
 })
 
-// Handle map click
+// Handle map click — we resolve the clicked province to its Kepwil and use
+// that as the detail-panel selection key (matching mapData's Kepwil keys).
 function onMapClick(params) {
-  if (params.data) {
-    const dbName = geoJsonToDbName[params.name]
-    if (dbName) {
-      selectedProvince.value = dbName
-    }
+  if (!params.data) return
+  const kw = params.data.kepwil
+  if (kw && mapData.value[kw]) {
+    selectedProvince.value = (selectedProvince.value === kw) ? null : kw
   }
 }
 </script>
@@ -673,7 +718,7 @@ function onMapClick(params) {
                 class="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all bg-white"
               >
                 <option value="">Semua Wilayah</option>
-                <option v-for="prov in provinsiList" :key="prov" :value="prov">{{ prov }}</option>
+                <option v-for="kw in kepwilList" :key="kw" :value="kw">Kedeputian Wilayah {{ kw }}</option>
               </select>
             </div>
 
@@ -736,7 +781,7 @@ function onMapClick(params) {
             <div class="lg:col-span-1">
               <div v-if="selectedProvince && mapData[selectedProvince]" class="bg-gradient-to-br from-bpjs-500 to-bpjs-600 rounded-xl p-5 text-white sticky top-6">
                 <div class="flex items-center justify-between mb-4">
-                  <h3 class="font-bold text-lg">{{ selectedProvince }}</h3>
+                  <h3 class="font-bold text-lg">Kedeputian Wilayah {{ selectedProvince }}</h3>
                   <button @click="selectedProvince = null" class="p-1 hover:bg-white/20 rounded-lg transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -790,12 +835,12 @@ function onMapClick(params) {
                     </div>
                   </div>
 
-                  <!-- Filter by this province button -->
+                  <!-- Filter by this kepwil button -->
                   <button
                     @click="filters.kepwil = selectedProvince; selectedProvince = null"
                     class="w-full py-2.5 bg-white text-bpjs-600 rounded-lg font-semibold text-sm hover:bg-white/90 transition-colors"
                   >
-                    Filter Data Provinsi Ini
+                    Filter Data Wilayah Ini
                   </button>
                 </div>
               </div>
@@ -807,8 +852,8 @@ function onMapClick(params) {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                   </svg>
                 </div>
-                <h4 class="font-medium text-gray-700 mb-2">Pilih Provinsi</h4>
-                <p class="text-sm text-gray-500">Klik provinsi di peta untuk melihat detail statistik</p>
+                <h4 class="font-medium text-gray-700 mb-2">Pilih Wilayah</h4>
+                <p class="text-sm text-gray-500">Klik provinsi di peta untuk melihat detail statistik per Kedeputian Wilayah</p>
               </div>
             </div>
           </div>

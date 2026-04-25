@@ -172,7 +172,9 @@ export default async function adminRoutes(fastify, options) {
     const allUsers = await prisma.user.findMany({
       include: {
         subKategori: { include: { kategori: true } },
-        kepwil: { select: { id: true, nama: true } }
+        kepwil: { select: { id: true, nama: true } },
+        kc: { select: { id: true, nama: true } },
+        kakab: { select: { id: true, nama: true } }
       },
       orderBy: { nama: 'asc' }
     })
@@ -207,6 +209,8 @@ export default async function adminRoutes(fastify, options) {
           posisi: user.posisi,
           vendor: user.vendor,
           kepwil: user.kepwil?.nama || null,
+          kc: user.kc?.nama || null,
+          kakab: user.kakab?.nama || null,
           subKategori: user.subKategori.nama,
           kategori: user.subKategori.kategori.nama,
           materiCompleted: completedMateriCount > 0,
