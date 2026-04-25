@@ -279,7 +279,9 @@ export default async function uploadRoutes(fastify, options) {
 
   // Serve PDF as binary data for canvas rendering (prevents browser auto-download)
   // Using POST to bypass browser's automatic PDF download detection
-  fastify.post('/pdf/fetch', async (request, reply) => {
+  fastify.post('/pdf/fetch', {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
     const { filename } = request.body
 
     if (!filename) {
