@@ -71,15 +71,15 @@ const filters = ref({
   dateFrom: '',
   dateTo: '',
   kepwil: '',
-  kcKabupaten: '',
+  kc: '',
   posisi: ''
 })
 
 // Filter options (derived from data)
-const kcKabupatenList = computed(() => {
+const kcFilterList = computed(() => {
   const cabangSet = new Set()
   usersWithProgress.value.forEach(u => {
-    if (u.kcKabupaten) cabangSet.add(u.kcKabupaten)
+    if (u.kc) cabangSet.add(u.kc)
   })
   return Array.from(cabangSet).sort()
 })
@@ -121,7 +121,7 @@ function resetFilters() {
     dateFrom: '',
     dateTo: '',
     kepwil: '',
-    kcKabupaten: '',
+    kc: '',
     posisi: ''
   }
   userPage.value = 1
@@ -136,9 +136,9 @@ const filteredUsers = computed(() => {
     result = result.filter(u => u.kepwil === filters.value.kepwil)
   }
 
-  // Filter by KC Kabupaten (Kantor Cabang)
-  if (filters.value.kcKabupaten) {
-    result = result.filter(u => u.kcKabupaten === filters.value.kcKabupaten)
+  // Filter by KC (Kantor Cabang)
+  if (filters.value.kc) {
+    result = result.filter(u => u.kc === filters.value.kc)
   }
 
   // Filter by Posisi
@@ -334,7 +334,7 @@ const greeting = computed(() => {
 // Check if any filter is active
 const hasActiveFilters = computed(() => {
   return filters.value.dateFrom || filters.value.dateTo ||
-    filters.value.kepwil || filters.value.kcKabupaten || filters.value.posisi
+    filters.value.kepwil || filters.value.kc || filters.value.posisi
 })
 
 // Province name mapping (Database name -> GeoJSON name)
@@ -677,15 +677,15 @@ function onMapClick(params) {
               </select>
             </div>
 
-            <!-- KC Kabupaten (Kantor Cabang) -->
+            <!-- KC (Kantor Cabang) -->
             <div>
               <label class="block text-xs font-medium text-gray-500 mb-1.5">Kantor Cabang (KC)</label>
               <select
-                v-model="filters.kcKabupaten"
+                v-model="filters.kc"
                 class="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all bg-white"
               >
                 <option value="">Semua Cabang</option>
-                <option v-for="cabang in kcKabupatenList" :key="cabang" :value="cabang">{{ cabang }}</option>
+                <option v-for="cabang in kcFilterList" :key="cabang" :value="cabang">{{ cabang }}</option>
               </select>
             </div>
 
@@ -1039,7 +1039,7 @@ function onMapClick(params) {
                   </td>
                   <td class="px-6 py-4">
                     <p class="text-sm text-gray-900">{{ user.kepwil || '-' }}</p>
-                    <p class="text-xs text-gray-500">{{ user.kcKabupaten || '' }}</p>
+                    <p class="text-xs text-gray-500">{{ user.kc || '' }}</p>
                   </td>
                   <td class="px-6 py-4">
                     <span class="inline-flex items-center px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium">

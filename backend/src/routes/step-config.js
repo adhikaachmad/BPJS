@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
-
 export default async function stepConfigRoutes(fastify, options) {
+  const { prisma } = fastify
+
   // GET all step configs (public - untuk frontend user)
   fastify.get('/step-config', async (request, reply) => {
     try {
@@ -21,7 +19,7 @@ export default async function stepConfigRoutes(fastify, options) {
     preHandler: [fastify.authenticate, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
-    const { nama, deskripsi, gradientFrom, gradientTo } = request.body
+    const { nama, deskripsi, gradientFrom, gradientTo, image } = request.body
 
     try {
       // Check if step exists
@@ -33,14 +31,20 @@ export default async function stepConfigRoutes(fastify, options) {
         return reply.status(404).send({ error: 'Step tidak ditemukan' })
       }
 
+      const updateData = {
+        nama: nama || existing.nama,
+        deskripsi: deskripsi || existing.deskripsi,
+        gradientFrom: gradientFrom || existing.gradientFrom,
+        gradientTo: gradientTo || existing.gradientTo
+      }
+
+      if (image !== undefined) {
+        updateData.image = image
+      }
+
       const updated = await prisma.stepConfig.update({
         where: { id },
-        data: {
-          nama: nama || existing.nama,
-          deskripsi: deskripsi || existing.deskripsi,
-          gradientFrom: gradientFrom || existing.gradientFrom,
-          gradientTo: gradientTo || existing.gradientTo
-        }
+        data: updateData
       })
 
       return updated

@@ -1,3 +1,5 @@
+import { logAudit } from '../utils/audit.js'
+
 export default async function kategoriRoutes(fastify, options) {
   const { prisma } = fastify
 
@@ -60,6 +62,11 @@ export default async function kategoriRoutes(fastify, options) {
     const { id } = request.params
     const { nama, deskripsi, icon } = request.body
 
+    const existing = await prisma.kategori.findUnique({ where: { id: parseInt(id) } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Kategori tidak ditemukan' })
+    }
+
     const kategori = await prisma.kategori.update({
       where: { id: parseInt(id) },
       data: { nama, deskripsi, icon }
@@ -68,17 +75,47 @@ export default async function kategoriRoutes(fastify, options) {
     return kategori
   })
 
-  // Delete kategori (admin only)
+  // Delete kategori — destructive cascade. SUPER_ADMIN only + explicit confirm when children exist.
   fastify.delete('/:id', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
+    if (request.user.adminRole !== 'SUPER_ADMIN') {
+      return reply.status(403).send({ error: 'Hanya Super Admin yang dapat menghapus kategori' })
+    }
     const { id } = request.params
+    const kategoriId = parseInt(id)
 
-    await prisma.kategori.delete({
-      where: { id: parseInt(id) }
+    const existing = await prisma.kategori.findUnique({
+      where: { id: kategoriId },
+      include: { subKategoris: { select: { id: true } } }
     })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Kategori tidak ditemukan' })
+    }
 
-    return { message: 'Kategori deleted successfully' }
+    // Count cascade impact
+    const subKategoriIds = existing.subKategoris.map(s => s.id)
+    const [userCount, modulCount, periodeCount] = await Promise.all([
+      prisma.user.count({ where: { subKategoriId: { in: subKategoriIds } } }),
+      prisma.modul.count({ where: { subKategoriId: { in: subKategoriIds } } }),
+      prisma.periodeTest.count({ where: { subKategoriId: { in: subKategoriIds } } })
+    ])
+
+    const totalImpact = subKategoriIds.length + userCount + modulCount + periodeCount
+    if (totalImpact > 0 && request.body?.confirm !== true) {
+      return reply.status(409).send({
+        error: 'Penghapusan akan menghapus data terkait secara permanen',
+        impact: { subKategori: subKategoriIds.length, user: userCount, modul: modulCount, periodeTest: periodeCount },
+        hint: 'Kirim ulang request dengan body { "confirm": true } untuk konfirmasi'
+      })
+    }
+
+    await prisma.kategori.delete({ where: { id: kategoriId } })
+    logAudit(prisma, request, 'KATEGORI_DELETE', {
+      target: 'kategori', targetId: kategoriId,
+      details: { nama: existing.nama, impact: { subKategori: subKategoriIds.length, user: userCount, modul: modulCount, periodeTest: periodeCount } }
+    })
+    return { message: 'Kategori deleted successfully', impact: { subKategori: subKategoriIds.length, user: userCount, modul: modulCount, periodeTest: periodeCount } }
   })
 
   // Get sub kategoris by kategori id
@@ -106,10 +143,13 @@ export default async function kategoriRoutes(fastify, options) {
       return reply.status(400).send({ error: 'Nama is required' })
     }
 
+    const slug = nama.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
     const subKategori = await prisma.subKategori.create({
       data: {
         nama,
         deskripsi,
+        slug,
         kategoriId: parseInt(id)
       }
     })
@@ -124,25 +164,61 @@ export default async function kategoriRoutes(fastify, options) {
     const { id } = request.params
     const { nama, deskripsi } = request.body
 
+    const existing = await prisma.subKategori.findUnique({ where: { id: parseInt(id) } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Sub kategori tidak ditemukan' })
+    }
+
+    const data = { nama, deskripsi }
+    // Update slug if nama changed
+    if (nama && nama !== existing.nama) {
+      data.slug = nama.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    }
+
     const subKategori = await prisma.subKategori.update({
       where: { id: parseInt(id) },
-      data: { nama, deskripsi }
+      data
     })
 
     return subKategori
   })
 
-  // Delete sub kategori (admin only)
+  // Delete sub kategori — destructive cascade. SUPER_ADMIN only + explicit confirm when children exist.
   fastify.delete('/sub-kategori/:id', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
+    if (request.user.adminRole !== 'SUPER_ADMIN') {
+      return reply.status(403).send({ error: 'Hanya Super Admin yang dapat menghapus sub kategori' })
+    }
     const { id } = request.params
+    const subKategoriId = parseInt(id)
 
-    await prisma.subKategori.delete({
-      where: { id: parseInt(id) }
+    const existing = await prisma.subKategori.findUnique({ where: { id: subKategoriId } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Sub kategori tidak ditemukan' })
+    }
+
+    const [userCount, modulCount, periodeCount] = await Promise.all([
+      prisma.user.count({ where: { subKategoriId } }),
+      prisma.modul.count({ where: { subKategoriId } }),
+      prisma.periodeTest.count({ where: { subKategoriId } })
+    ])
+
+    const totalImpact = userCount + modulCount + periodeCount
+    if (totalImpact > 0 && request.body?.confirm !== true) {
+      return reply.status(409).send({
+        error: 'Penghapusan akan menghapus data terkait secara permanen',
+        impact: { user: userCount, modul: modulCount, periodeTest: periodeCount },
+        hint: 'Kirim ulang request dengan body { "confirm": true } untuk konfirmasi'
+      })
+    }
+
+    await prisma.subKategori.delete({ where: { id: subKategoriId } })
+    logAudit(prisma, request, 'SUBKATEGORI_DELETE', {
+      target: 'subKategori', targetId: subKategoriId,
+      details: { nama: existing.nama, impact: { user: userCount, modul: modulCount, periodeTest: periodeCount } }
     })
-
-    return { message: 'Sub kategori deleted successfully' }
+    return { message: 'Sub kategori deleted successfully', impact: { user: userCount, modul: modulCount, periodeTest: periodeCount } }
   })
 
   // Get sub kategori detail with moduls

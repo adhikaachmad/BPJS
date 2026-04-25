@@ -60,10 +60,21 @@ export default async function reportRoutes(fastify, options) {
     const where = buildWhereClause(request.query)
     const { periodeBulan, periodeTahun } = request.query
 
+    // Filter data by kepwil for ADMIN_KEPWIL
+    if (request.user.adminRole === 'ADMIN_KEPWIL' && request.user.kepwilId) {
+      where.user = { ...(where.user || {}), kepwilId: request.user.kepwilId }
+    }
+
     const results = await prisma.testSession.findMany({
       where,
       include: {
-        user: true,
+        user: {
+          include: {
+            kepwil: { select: { nama: true } },
+            kc: { select: { nama: true } },
+            kakab: { select: { nama: true } }
+          }
+        },
         modul: {
           include: {
             subKategori: {
@@ -118,9 +129,9 @@ export default async function reportRoutes(fastify, options) {
         npp: result.user.npp,
         nama: result.user.nama,
         vendor: result.user.vendor || '-',
-        kepwil: result.user.kepwil || '-',
-        kc: result.user.kcKabupaten || '-',
-        kakab: result.user.kakabKabupaten || '-',
+        kepwil: result.user.kepwil?.nama || '-',
+        kc: result.user.kc?.nama || '-',
+        kakab: result.user.kakab?.nama || '-',
         kategori: result.modul.subKategori.kategori.nama,
         subKategori: result.modul.subKategori.nama,
         modul: result.modul.nama,
@@ -200,10 +211,21 @@ export default async function reportRoutes(fastify, options) {
     const where = buildWhereClause(request.query)
     const { periodeBulan, periodeTahun } = request.query
 
+    // Filter data by kepwil for ADMIN_KEPWIL
+    if (request.user.adminRole === 'ADMIN_KEPWIL' && request.user.kepwilId) {
+      where.user = { ...(where.user || {}), kepwilId: request.user.kepwilId }
+    }
+
     const results = await prisma.testSession.findMany({
       where,
       include: {
-        user: true,
+        user: {
+          include: {
+            kepwil: { select: { nama: true } },
+            kc: { select: { nama: true } },
+            kakab: { select: { nama: true } }
+          }
+        },
         modul: {
           include: {
             subKategori: {
@@ -272,9 +294,9 @@ export default async function reportRoutes(fastify, options) {
         result.user.npp,
         (result.user.nama || '').substring(0, 15),
         (result.user.vendor || '-').substring(0, 12),
-        (result.user.kepwil || '-').substring(0, 12),
-        (result.user.kcKabupaten || '-').substring(0, 12),
-        (result.user.kakabKabupaten || '-').substring(0, 12),
+        (result.user.kepwil?.nama || '-').substring(0, 12),
+        (result.user.kc?.nama || '-').substring(0, 12),
+        (result.user.kakab?.nama || '-').substring(0, 12),
         (result.modul.subKategori.nama || '').substring(0, 10),
         (result.hasilTest?.totalSoal || 0).toString(),
         (result.hasilTest?.benar || 0).toString(),

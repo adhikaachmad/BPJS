@@ -1,19 +1,49 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
-
 // Store active WebSocket connections
 const connections = new Map()
 
 export function setupWebSocket(fastify) {
-  fastify.get('/ws/test', { websocket: true }, (connection, req) => {
+  const { prisma } = fastify
+
+  // SECURITY: prefer authenticating the JWT at upgrade time via query string.
+  // If query token absent (older client), connection is accepted but client MUST send 'auth'
+  // message within AUTH_GRACE_MS or the connection is force-closed.
+  const AUTH_GRACE_MS = 5000
+
+  fastify.get('/ws/test', {
+    websocket: true,
+    preValidation: async (request, reply) => {
+      // Optional upgrade-time auth. If token provided & invalid → reject immediately.
+      // If absent → defer to message-based auth with grace timeout (handled in handler).
+      const token = request.query.token
+      if (token) {
+        try {
+          const decoded = fastify.jwt.verify(token)
+          request.wsUserId = decoded.id
+          request.wsSessionId = request.query.sessionId
+        } catch (err) {
+          return reply.code(401).send({ error: 'Invalid or expired token' })
+        }
+      }
+    }
+  }, (connection, req) => {
     const socket = connection.socket
-
-    console.log('WebSocket client connected')
-
-    let userId = null
-    let sessionId = null
+    let userId = req.wsUserId || null
+    let sessionId = req.wsSessionId || null
     let heartbeatInterval = null
+
+    // If pre-authenticated at upgrade, register immediately.
+    if (userId && sessionId) {
+      connections.set(`${userId}-${sessionId}`, socket)
+      console.log(`WebSocket connected (upgrade-auth): user=${userId} session=${sessionId}`)
+    } else {
+      // Force-close connections that don't authenticate via message within grace window.
+      const graceTimer = setTimeout(() => {
+        if (!userId) {
+          try { socket.close(4401, 'Authentication timeout') } catch {}
+        }
+      }, AUTH_GRACE_MS)
+      socket.once('close', () => clearTimeout(graceTimer))
+    }
 
     // Heartbeat to keep connection alive
     heartbeatInterval = setInterval(() => {
@@ -27,28 +57,22 @@ export function setupWebSocket(fastify) {
         const data = JSON.parse(message.toString())
 
         switch (data.type) {
+          // Legacy auth path: older clients send token + sessionId via 'auth' message.
           case 'auth':
-            // Verify JWT token and authenticate connection
+            // Skip if already authenticated at upgrade.
+            if (userId) {
+              socket.send(JSON.stringify({ type: 'auth_success', message: 'Already authenticated' }))
+              break
+            }
             try {
               const decoded = fastify.jwt.verify(data.token)
               userId = decoded.id
               sessionId = data.sessionId
-
-              // Store connection
-              const key = `${userId}-${sessionId}`
-              connections.set(key, socket)
-
-              socket.send(JSON.stringify({
-                type: 'auth_success',
-                message: 'Authenticated successfully'
-              }))
-
-              console.log(`User ${userId} authenticated for session ${sessionId}`)
+              connections.set(`${userId}-${sessionId}`, socket)
+              socket.send(JSON.stringify({ type: 'auth_success', message: 'Authenticated successfully' }))
             } catch (err) {
-              socket.send(JSON.stringify({
-                type: 'auth_error',
-                message: 'Invalid token'
-              }))
+              socket.send(JSON.stringify({ type: 'auth_error', message: 'Invalid token' }))
+              try { socket.close(4401, 'Invalid token') } catch {}
             }
             break
 

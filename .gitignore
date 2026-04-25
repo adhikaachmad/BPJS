@@ -9,6 +9,18 @@ node_modules/
 .env.local
 .env.*.local
 
+# Backups (contain production secrets and DB dumps)
+backup/
+backups/
+*.sql
+*.zip
+
+# Prisma generated client (regenerable via `prisma generate`)
+backend/generated/
+
+# Sensitive operational files
+BPJS-Pentest-Meeting-Kit.xlsx
+
 # Database
 *.db
 *.db-journal

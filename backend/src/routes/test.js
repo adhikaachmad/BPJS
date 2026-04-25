@@ -35,8 +35,13 @@ export default async function testRoutes(fastify, options) {
         }
       })
 
-      const soalOrder = JSON.parse(existingSession.soalOrder)
-      const soals = soalOrder.map(id => modul.soals.find(s => s.id === id))
+      let soalOrder
+      try {
+        soalOrder = JSON.parse(existingSession.soalOrder)
+      } catch (e) {
+        return reply.status(500).send({ error: 'Data sesi rusak, silakan mulai test baru' })
+      }
+      const soals = soalOrder.map(id => modul.soals.find(s => s.id === id)).filter(Boolean)
 
       // Get existing answers
       const jawabans = await prisma.jawaban.findMany({
@@ -452,7 +457,12 @@ export default async function testRoutes(fastify, options) {
     }
 
     // Get all soals with order from session
-    const soalOrder = JSON.parse(session.soalOrder)
+    let soalOrder
+    try {
+      soalOrder = JSON.parse(session.soalOrder)
+    } catch (e) {
+      return reply.status(500).send({ error: 'Data sesi rusak' })
+    }
 
     // Build detailed review with pembahasan
     const review = soalOrder.map((soalId, index) => {

@@ -77,15 +77,18 @@ function goToMateri(index) {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+const completeError = ref('')
+
 async function completeMateri() {
   completing.value = true
+  completeError.value = ''
   try {
     await api.post(`/periode/user/${periode.value.id}/materi-progress/complete`)
     progress.value.isCompleted = true
     progress.value.completedAt = new Date().toISOString()
   } catch (err) {
     console.error(err)
-    alert('Gagal menandai materi sebagai selesai')
+    completeError.value = 'Gagal menandai materi sebagai selesai'
   } finally {
     completing.value = false
   }
@@ -323,6 +326,7 @@ function formatDate(dateStr) {
           </button>
 
           <div v-if="isLastMateri && !progress.isCompleted">
+            <p v-if="completeError" class="text-red-500 text-sm mb-2">{{ completeError }}</p>
             <button
               @click="completeMateri"
               :disabled="completing"

@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs'
+import { logAudit } from '../utils/audit.js'
 
 // Role constants
 const ROLES = {
@@ -21,10 +22,10 @@ function checkRole(...allowedRoles) {
   }
 }
 
-// Helper function to get kepwil filter for ADMIN_KEPWIL
+// Helper function to get kepwilId filter for ADMIN_KEPWIL
 function getKepwilFilter(request) {
   if (request.user.adminRole === ROLES.ADMIN_KEPWIL) {
-    return request.user.kepwil
+    return request.user.kepwilId
   }
   return null // No filter for SUPER_ADMIN and ADMIN_KP
 }
@@ -183,9 +184,8 @@ export default async function adminRoutes(fastify, options) {
     // All users with their progress status
     const allUsers = await prisma.user.findMany({
       include: {
-        subKategori: {
-          include: { kategori: true }
-        }
+        subKategori: { include: { kategori: true } },
+        kepwil: { select: { id: true, nama: true } }
       },
       orderBy: { nama: 'asc' }
     })
@@ -245,7 +245,7 @@ export default async function adminRoutes(fastify, options) {
           nama: user.nama,
           posisi: user.posisi,
           vendor: user.vendor,
-          kepwil: user.kepwil,
+          kepwil: user.kepwil?.nama || null,
           subKategori: user.subKategori.nama,
           kategori: user.subKategori.kategori.nama,
           materiCompleted,
@@ -257,15 +257,24 @@ export default async function adminRoutes(fastify, options) {
 
     // Regional Analytics
     const regionals = await prisma.user.groupBy({
-      by: ['kepwil'],
+      by: ['kepwilId'],
       _count: { id: true }
     })
 
+    // Get kepwil names for the IDs
+    const kepwilIds = regionals.filter(r => r.kepwilId).map(r => r.kepwilId)
+    const kepwilMap = new Map()
+    if (kepwilIds.length > 0) {
+      const kepwils = await prisma.kepwil.findMany({ where: { id: { in: kepwilIds } } })
+      kepwils.forEach(k => kepwilMap.set(k.id, k.nama))
+    }
+
     // Users per regional
     const usersByRegional = regionals
-      .filter(r => r.kepwil)
+      .filter(r => r.kepwilId)
       .map(r => ({
-        nama: r.kepwil,
+        kepwilId: r.kepwilId,
+        nama: kepwilMap.get(r.kepwilId) || 'Unknown',
         total: r._count.id
       }))
       .sort((a, b) => a.nama.localeCompare(b.nama))
@@ -274,7 +283,7 @@ export default async function adminRoutes(fastify, options) {
     const regionalProgress = await Promise.all(
       usersByRegional.map(async (reg) => {
         const usersInRegional = await prisma.user.findMany({
-          where: { kepwil: reg.nama },
+          where: { kepwilId: reg.kepwilId },
           select: { id: true, subKategoriId: true }
         })
 
@@ -320,7 +329,7 @@ export default async function adminRoutes(fastify, options) {
     const regionalScores = await Promise.all(
       usersByRegional.map(async (reg) => {
         const usersInRegional = await prisma.user.findMany({
-          where: { kepwil: reg.nama },
+          where: { kepwilId: reg.kepwilId },
           select: { id: true }
         })
         const userIds = usersInRegional.map(u => u.id)
@@ -394,19 +403,27 @@ export default async function adminRoutes(fastify, options) {
         username: true,
         nama: true,
         role: true,
-        kepwil: true,
+        kepwilId: true,
+        kepwil: { select: { id: true, nama: true } },
+        kcId: true,
+        kc: { select: { id: true, nama: true } },
         createdAt: true
       },
       orderBy: { createdAt: 'desc' }
     })
-    return admins
+    // Flatten kepwil and kc for frontend compatibility
+    return admins.map(a => ({
+      ...a,
+      kepwil: a.kepwil?.nama || null,
+      kc: a.kc?.nama || null
+    }))
   })
 
   // Create new admin - SUPER_ADMIN & ADMIN_KP only
   fastify.post('/create', {
     preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
-    const { username, password, nama, role, kepwil } = request.body
+    const { username, password, nama, role, kepwilId, kcId } = request.body
     const adminRole = request.user.adminRole
 
     if (!username || !password || !nama) {
@@ -424,8 +441,8 @@ export default async function adminRoutes(fastify, options) {
       return reply.status(403).send({ error: 'Anda tidak dapat membuat Super Admin' })
     }
 
-    // ADMIN_KEPWIL must have kepwil
-    if (role === ROLES.ADMIN_KEPWIL && !kepwil) {
+    // ADMIN_KEPWIL must have kepwilId
+    if (role === ROLES.ADMIN_KEPWIL && !kepwilId) {
       return reply.status(400).send({ error: 'Kepwil wajib diisi untuk Admin Kepwil' })
     }
 
@@ -442,19 +459,24 @@ export default async function adminRoutes(fastify, options) {
         password: hashedPassword,
         nama,
         role: role || ROLES.ADMIN_KP,
-        kepwil: role === ROLES.ADMIN_KEPWIL ? kepwil : null
+        kepwilId: role === ROLES.ADMIN_KEPWIL ? parseInt(kepwilId) : null,
+        kcId: kepwilId ? (kcId ? parseInt(kcId) : null) : null
       },
       select: {
         id: true,
         username: true,
         nama: true,
         role: true,
-        kepwil: true,
+        kepwilId: true,
+        kepwil: { select: { id: true, nama: true } },
+        kcId: true,
+        kc: { select: { id: true, nama: true } },
         createdAt: true
       }
     })
 
-    return admin
+    logAudit(prisma, request, 'ADMIN_CREATE', { target: 'admin', targetId: admin.id, details: { username: admin.username, role: admin.role } })
+    return { ...admin, kepwil: admin.kepwil?.nama || null, kc: admin.kc?.nama || null }
   })
 
   // Update admin - SUPER_ADMIN & ADMIN_KP only
@@ -462,7 +484,7 @@ export default async function adminRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { id } = request.params
-    const { nama, password, role, kepwil } = request.body
+    const { nama, password, role, kepwilId, kcId } = request.body
     const adminRole = request.user.adminRole
     const adminId = parseInt(id)
 
@@ -485,15 +507,16 @@ export default async function adminRoutes(fastify, options) {
       return reply.status(403).send({ error: 'Anda tidak dapat mengubah role menjadi Super Admin' })
     }
 
-    // ADMIN_KEPWIL must have kepwil
-    if (role === ROLES.ADMIN_KEPWIL && !kepwil) {
+    // ADMIN_KEPWIL must have kepwilId
+    if (role === ROLES.ADMIN_KEPWIL && !kepwilId) {
       return reply.status(400).send({ error: 'Kepwil wajib diisi untuk Admin Kepwil' })
     }
 
     const data = {
       nama,
       role,
-      kepwil: role === ROLES.ADMIN_KEPWIL ? kepwil : null
+      kepwilId: role === ROLES.ADMIN_KEPWIL ? parseInt(kepwilId) : null,
+      kcId: kepwilId ? (kcId ? parseInt(kcId) : null) : null
     }
 
     if (password) {
@@ -508,12 +531,24 @@ export default async function adminRoutes(fastify, options) {
         username: true,
         nama: true,
         role: true,
-        kepwil: true,
+        kepwilId: true,
+        kepwil: { select: { id: true, nama: true } },
+        kcId: true,
+        kc: { select: { id: true, nama: true } },
         createdAt: true
       }
     })
 
-    return admin
+    // If password changed, force re-login on all the target admin's existing sessions.
+    if (password) {
+      await prisma.admin.update({ where: { id: adminId }, data: { tokensInvalidBefore: new Date() } })
+    }
+
+    logAudit(prisma, request, 'ADMIN_UPDATE', {
+      target: 'admin', targetId: adminId,
+      details: { username: admin.username, newRole: admin.role, passwordChanged: !!password }
+    })
+    return { ...admin, kepwil: admin.kepwil?.nama || null, kc: admin.kc?.nama || null }
   })
 
   // Delete admin - SUPER_ADMIN & ADMIN_KP only
@@ -547,7 +582,36 @@ export default async function adminRoutes(fastify, options) {
       where: { id: adminId }
     })
 
+    logAudit(prisma, request, 'ADMIN_DELETE', { target: 'admin', targetId: adminId, details: { username: targetAdmin.username, role: targetAdmin.role } })
     return { message: 'Admin berhasil dihapus' }
+  })
+
+  // View audit log — SUPER_ADMIN only.
+  // Filters: ?action=LOGIN_FAIL&actorType=admin&actorId=5&target=user&since=2026-04-01&limit=100
+  fastify.get('/audit-log', {
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN)]
+  }, async (request, reply) => {
+    const { action, actorType, actorId, target, targetId, since, until } = request.query
+    const limit = Math.min(parseInt(request.query.limit) || 100, 500)
+    const offset = parseInt(request.query.offset) || 0
+
+    const where = {}
+    if (action) where.action = action
+    if (actorType) where.actorType = actorType
+    if (actorId) where.actorId = parseInt(actorId)
+    if (target) where.target = target
+    if (targetId) where.targetId = parseInt(targetId)
+    if (since || until) {
+      where.createdAt = {}
+      if (since) where.createdAt.gte = new Date(since)
+      if (until) where.createdAt.lte = new Date(until)
+    }
+
+    const [items, total] = await Promise.all([
+      prisma.auditLog.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      prisma.auditLog.count({ where })
+    ])
+    return { total, limit, offset, items }
   })
 
   // Get all test results with filters
@@ -636,6 +700,97 @@ export default async function adminRoutes(fastify, options) {
         limit: parseInt(limit),
         total,
         totalPages: Math.ceil(total / parseInt(limit))
+      }
+    }
+  })
+
+  // Get all test results (combined: old TestSession + new TestSessionPeriode)
+  fastify.get('/results-all', {
+    preHandler: [fastify.authenticateAdmin]
+  }, async (request, reply) => {
+    const { kategoriId, subKategoriId, periodeBulan, periodeTahun, page = 1, limit = 20 } = request.query
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const take = parseInt(limit)
+
+    // Build where clause for periode results
+    const periodeWhere = { isCompleted: true }
+    if (subKategoriId) {
+      periodeWhere.periodeTest = { subKategoriId: parseInt(subKategoriId) }
+    } else if (kategoriId) {
+      periodeWhere.periodeTest = { subKategori: { kategoriId: parseInt(kategoriId) } }
+    }
+    if (periodeBulan || periodeTahun) {
+      periodeWhere.periodeTest = periodeWhere.periodeTest || {}
+      if (periodeBulan) periodeWhere.periodeTest.bulan = parseInt(periodeBulan)
+      if (periodeTahun) periodeWhere.periodeTest.tahun = parseInt(periodeTahun)
+    }
+
+    // Filter for ADMIN_KEPWIL
+    if (request.user.adminRole === 'ADMIN_KEPWIL' && request.user.kepwilId) {
+      periodeWhere.user = { kepwilId: request.user.kepwilId }
+    }
+
+    const [total, periodeResults] = await Promise.all([
+      prisma.testSessionPeriode.count({ where: periodeWhere }),
+      prisma.testSessionPeriode.findMany({
+        where: periodeWhere,
+        include: {
+          user: {
+            include: {
+              kepwil: { select: { id: true, nama: true } },
+              kc: { select: { id: true, nama: true } },
+              kakab: { select: { id: true, nama: true } },
+              subKategori: { include: { kategori: true } }
+            }
+          },
+          periodeTest: {
+            include: {
+              subKategori: { include: { kategori: true } }
+            }
+          },
+          hasilTest: true
+        },
+        orderBy: { endTime: 'desc' },
+        skip,
+        take
+      })
+    ])
+
+    // Normalize data format
+    const data = periodeResults.map(r => ({
+      id: r.id,
+      type: 'periode',
+      user: {
+        id: r.user.id,
+        npp: r.user.npp,
+        nama: r.user.nama,
+        vendor: r.user.vendor,
+        posisi: r.user.posisi,
+        kepwil: r.user.kepwil?.nama || null,
+        kc: r.user.kc?.nama || null,
+        kakab: r.user.kakab?.nama || null
+      },
+      subKategori: r.periodeTest.subKategori?.nama || null,
+      kategori: r.periodeTest.subKategori?.kategori?.nama || null,
+      periode: r.periodeTest.nama,
+      hasilTest: r.hasilTest ? {
+        totalSoal: r.hasilTest.totalSoal,
+        benar: r.hasilTest.benar,
+        salah: r.hasilTest.salah,
+        skor: r.hasilTest.skor
+      } : null,
+      materiCompleted: null,
+      startTime: r.startTime,
+      endTime: r.endTime
+    }))
+
+    return {
+      data,
+      pagination: {
+        page: parseInt(page),
+        limit: take,
+        total,
+        totalPages: Math.ceil(total / take)
       }
     }
   })
@@ -855,6 +1010,11 @@ export default async function adminRoutes(fastify, options) {
     const { id } = request.params
     const { judul, konten, videoUrl, pdfUrl, urutan } = request.body
 
+    const existing = await prisma.materi.findUnique({ where: { id: parseInt(id) } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Materi tidak ditemukan' })
+    }
+
     const materi = await prisma.materi.update({
       where: { id: parseInt(id) },
       data: { judul, konten, videoUrl, pdfUrl, urutan }
@@ -868,6 +1028,11 @@ export default async function adminRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { id } = request.params
+
+    const existing = await prisma.materi.findUnique({ where: { id: parseInt(id) } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Materi tidak ditemukan' })
+    }
 
     await prisma.materi.delete({
       where: { id: parseInt(id) }

@@ -13,20 +13,15 @@ export function useWebSocket(sessionId) {
     const token = localStorage.getItem('token')
     if (!token || !sessionId) return
 
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/test`
+    // Token & sessionId now passed as query params — backend authenticates at upgrade.
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${proto}//${window.location.host}/ws/test?token=${encodeURIComponent(token)}&sessionId=${encodeURIComponent(sessionId)}`
 
     socket.value = new WebSocket(wsUrl)
 
     socket.value.onopen = () => {
       connected.value = true
       reconnectAttempts = 0
-
-      // Authenticate
-      socket.value.send(JSON.stringify({
-        type: 'auth',
-        token,
-        sessionId
-      }))
 
       // Start auto-save interval (every 3 seconds)
       saveInterval = setInterval(() => {

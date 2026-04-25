@@ -81,6 +81,11 @@ export default async function modulRoutes(fastify, options) {
     const { id } = request.params
     const { nama, deskripsi, gradientFrom, gradientTo, icon, durasi } = request.body
 
+    const existing = await prisma.modul.findUnique({ where: { id: parseInt(id) } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Modul tidak ditemukan' })
+    }
+
     const modul = await prisma.modul.update({
       where: { id: parseInt(id) },
       data: { nama, deskripsi, gradientFrom, gradientTo, icon, durasi }
@@ -94,6 +99,11 @@ export default async function modulRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
     const { id } = request.params
+
+    const existing = await prisma.modul.findUnique({ where: { id: parseInt(id) } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Modul tidak ditemukan' })
+    }
 
     await prisma.modul.delete({
       where: { id: parseInt(id) }

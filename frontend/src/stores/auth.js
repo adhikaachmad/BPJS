@@ -71,7 +71,8 @@ export const useAuthStore = defineStore('auth', () => {
         ...response.data.admin,
         role: 'admin',
         adminRole: response.data.admin.role, // SUPER_ADMIN, ADMIN_KP, ADMIN_KEPWIL
-        kepwil: response.data.admin.kepwil
+        kepwil: response.data.admin.kepwil,
+        kc: response.data.admin.kc
       }
       localStorage.setItem('token', response.data.token)
       return true
@@ -104,11 +105,13 @@ export const useAuthStore = defineStore('auth', () => {
         // For admin, save adminRole before setting user
         const adminRole = response.data.user.role // SUPER_ADMIN, ADMIN_KP, ADMIN_KEPWIL
         const kepwil = response.data.user.kepwil
+        const kc = response.data.user.kc
         user.value = {
           ...response.data.user,
           role: 'admin', // For isAdmin check compatibility
           adminRole: adminRole,
-          kepwil: kepwil
+          kepwil: kepwil,
+          kc: kc
         }
       } else {
         user.value = response.data.user

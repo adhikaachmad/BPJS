@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import AdminLayout from '@/components/admin/AdminLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
@@ -7,6 +7,8 @@ import api from '@/utils/api'
 const authStore = useAuthStore()
 
 const admins = ref([])
+const searchQuery = ref('')
+const filterRole = ref('')
 const loading = ref(true)
 const showModal = ref(false)
 const editMode = ref(false)
@@ -18,11 +20,14 @@ const form = ref({
   password: '',
   nama: '',
   role: 'ADMIN_KP',
-  kepwil: ''
+  kepwilId: null,
+  kcId: null
 })
 
-const provinsiList = ref([])
-const loadingProvinsi = ref(false)
+const kepwilList = ref([])
+const loadingKepwil = ref(false)
+const kcList = ref([])
+const loadingKc = ref(false)
 
 // Role options based on current admin's role
 const roleOptions = computed(() => {
@@ -47,8 +52,18 @@ const roleDisplay = {
   'ADMIN_KEPWIL': { label: 'Admin Kepwil', color: 'bg-emerald-100 text-emerald-800' }
 }
 
+// Watch for kepwil changes to fetch KC list
+watch(() => form.value.kepwilId, async (newVal) => {
+  if (newVal) {
+    await fetchKc(newVal)
+  } else {
+    kcList.value = []
+    form.value.kcId = null
+  }
+})
+
 onMounted(async () => {
-  await Promise.all([fetchAdmins(), fetchProvinsi()])
+  await Promise.all([fetchAdmins(), fetchKepwil()])
 })
 
 async function fetchAdmins() {
@@ -63,15 +78,32 @@ async function fetchAdmins() {
   }
 }
 
-async function fetchProvinsi() {
-  loadingProvinsi.value = true
+async function fetchKepwil() {
+  loadingKepwil.value = true
   try {
-    const response = await api.get('/lokasi/provinsi')
-    provinsiList.value = response.data.data
+    const response = await api.get('/lokasi/kepwil')
+    kepwilList.value = response.data.data
   } catch (err) {
-    console.error('Failed to fetch provinsi:', err)
+    console.error('Failed to fetch kepwil:', err)
   } finally {
-    loadingProvinsi.value = false
+    loadingKepwil.value = false
+  }
+}
+
+async function fetchKc(kepwilId) {
+  if (!kepwilId) {
+    kcList.value = []
+    return
+  }
+  loadingKc.value = true
+  try {
+    const response = await api.get(`/lokasi/kc/${kepwilId}`)
+    kcList.value = response.data.data
+  } catch (err) {
+    console.error('Failed to fetch KC:', err)
+    kcList.value = []
+  } finally {
+    loadingKc.value = false
   }
 }
 
@@ -82,8 +114,10 @@ function resetForm() {
     password: '',
     nama: '',
     role: 'ADMIN_KP',
-    kepwil: ''
+    kepwilId: null,
+    kcId: null
   }
+  kcList.value = []
 }
 
 function openCreate() {
@@ -92,15 +126,22 @@ function openCreate() {
   showModal.value = true
 }
 
-function openEdit(admin) {
+async function openEdit(admin) {
   form.value = {
     id: admin.id,
     username: admin.username,
     password: '', // Don't prefill password
     nama: admin.nama,
     role: admin.role,
-    kepwil: admin.kepwil || ''
+    kepwilId: admin.kepwilId || null,
+    kcId: admin.kcId || null
   }
+
+  // If admin has kepwil, fetch the KC list
+  if (admin.kepwilId) {
+    await fetchKc(admin.kepwilId)
+  }
+
   editMode.value = true
   showModal.value = true
 }
@@ -113,7 +154,8 @@ async function saveAdmin() {
         nama: form.value.nama,
         password: form.value.password || undefined,
         role: form.value.role,
-        kepwil: form.value.role === 'ADMIN_KEPWIL' ? form.value.kepwil : null
+        kepwilId: form.value.role === 'ADMIN_KEPWIL' ? form.value.kepwilId : null,
+        kcId: form.value.role === 'ADMIN_KEPWIL' ? form.value.kcId : null
       })
     } else {
       await api.post('/admin/create', {
@@ -121,7 +163,8 @@ async function saveAdmin() {
         password: form.value.password,
         nama: form.value.nama,
         role: form.value.role,
-        kepwil: form.value.role === 'ADMIN_KEPWIL' ? form.value.kepwil : null
+        kepwilId: form.value.role === 'ADMIN_KEPWIL' ? form.value.kepwilId : null,
+        kcId: form.value.role === 'ADMIN_KEPWIL' ? form.value.kcId : null
       })
     }
     showModal.value = false
@@ -143,6 +186,24 @@ async function deleteAdmin(admin) {
     alert(err.response?.data?.error || 'Gagal menghapus admin')
   }
 }
+
+// Filtered admins based on search and role filter
+const filteredAdmins = computed(() => {
+  let list = admins.value
+  if (filterRole.value) {
+    list = list.filter(a => a.role === filterRole.value)
+  }
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.toLowerCase().trim()
+    list = list.filter(a =>
+      a.nama?.toLowerCase().includes(q) ||
+      a.username?.toLowerCase().includes(q) ||
+      a.kepwil?.toLowerCase().includes(q) ||
+      a.kc?.toLowerCase().includes(q)
+    )
+  }
+  return list
+})
 
 // Check if current admin can edit/delete target admin
 function canModify(admin) {
@@ -174,6 +235,30 @@ function canModify(admin) {
         </button>
       </div>
 
+      <!-- Search & Filter -->
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 flex flex-col sm:flex-row gap-3">
+        <div class="relative flex-1">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Cari nama, username, atau wilayah..."
+            class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all"
+          />
+        </div>
+        <select
+          v-model="filterRole"
+          class="px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-bpjs-500/20 focus:border-bpjs-500 transition-all bg-white sm:w-52"
+        >
+          <option value="">Semua Role</option>
+          <option value="SUPER_ADMIN">Super Admin</option>
+          <option value="ADMIN_KP">Admin KP</option>
+          <option value="ADMIN_KEPWIL">Admin Kepwil</option>
+        </select>
+      </div>
+
       <!-- Loading State -->
       <div v-if="loading" class="text-center py-12">
         <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-bpjs-500 border-t-transparent"></div>
@@ -193,7 +278,7 @@ function canModify(admin) {
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
-            <tr v-for="admin in admins" :key="admin.id" class="hover:bg-gray-50 transition-colors">
+            <tr v-for="admin in filteredAdmins" :key="admin.id" class="hover:bg-gray-50 transition-colors">
               <td class="px-6 py-4">
                 <div class="flex items-center space-x-3">
                   <div class="w-10 h-10 bg-gradient-to-br from-bpjs-400 to-bpjs-600 rounded-full flex items-center justify-center">
@@ -217,7 +302,10 @@ function canModify(admin) {
                 </span>
               </td>
               <td class="px-6 py-4">
-                <span v-if="admin.kepwil" class="text-gray-700">{{ admin.kepwil }}</span>
+                <div v-if="admin.kepwil || admin.kc">
+                  <span v-if="admin.kepwil" class="text-gray-700">{{ admin.kepwil }}</span>
+                  <span v-if="admin.kc" class="text-xs text-gray-500 block">KC: {{ admin.kc }}</span>
+                </div>
                 <span v-else class="text-gray-400">-</span>
               </td>
               <td class="px-6 py-4">
@@ -248,7 +336,7 @@ function canModify(admin) {
           </tbody>
         </table>
 
-        <div v-if="admins.length === 0" class="text-center py-12">
+        <div v-if="filteredAdmins.length === 0" class="text-center py-12">
           <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
@@ -326,18 +414,34 @@ function canModify(admin) {
 
             <!-- Kepwil (only for ADMIN_KEPWIL) -->
             <div v-if="form.role === 'ADMIN_KEPWIL'">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Kantor Wilayah</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Kedeputian Wilayah</label>
               <select
-                v-model="form.kepwil"
+                v-model="form.kepwilId"
                 required
                 class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-bpjs-500 focus:border-transparent"
               >
-                <option value="">Pilih Wilayah...</option>
-                <option v-for="prov in provinsiList" :key="prov.id" :value="prov.nama">
-                  {{ prov.nama }}
+                <option :value="null">Pilih Kepwil...</option>
+                <option v-for="kw in kepwilList" :key="kw.id" :value="kw.id">
+                  {{ kw.nama }}
                 </option>
               </select>
               <p class="text-xs text-gray-500 mt-1">Admin hanya dapat mengakses data di wilayah ini</p>
+            </div>
+
+            <!-- KC (only for ADMIN_KEPWIL) -->
+            <div v-if="form.role === 'ADMIN_KEPWIL'">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Kantor Cabang (KC)</label>
+              <select
+                v-model="form.kcId"
+                :disabled="!form.kepwilId || loadingKc"
+                class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-bpjs-500 focus:border-transparent disabled:bg-gray-100"
+              >
+                <option :value="null">Pilih KC...</option>
+                <option v-for="kc in kcList" :key="kc.id" :value="kc.id">
+                  {{ kc.nama }}
+                </option>
+              </select>
+              <p class="text-xs text-gray-500 mt-1">Opsional - pilih KC spesifik untuk admin</p>
             </div>
 
             <!-- Actions -->

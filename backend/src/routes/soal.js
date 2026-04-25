@@ -91,8 +91,25 @@ export default async function soalRoutes(fastify, options) {
 
     const soalId = parseInt(id)
 
+    // Check if soal exists
+    const existing = await prisma.soal.findUnique({ where: { id: soalId } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Soal tidak ditemukan' })
+    }
+
+    // Validate opsis if provided
+    if (opsis && opsis.length > 0) {
+      if (opsis.length < 2) {
+        return reply.status(400).send({ error: 'Minimal 2 opsi jawaban' })
+      }
+      const correctCount = opsis.filter(o => o.isCorrect).length
+      if (correctCount !== 1) {
+        return reply.status(400).send({ error: 'Harus ada tepat 1 jawaban benar' })
+      }
+    }
+
     // Update soal
-    const soal = await prisma.soal.update({
+    await prisma.soal.update({
       where: { id: soalId },
       data: { pertanyaan, bobot }
     })
@@ -127,6 +144,11 @@ export default async function soalRoutes(fastify, options) {
   }, async (request, reply) => {
     const { id } = request.params
 
+    const existing = await prisma.soal.findUnique({ where: { id: parseInt(id) } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Soal tidak ditemukan' })
+    }
+
     await prisma.soal.delete({
       where: { id: parseInt(id) }
     })
@@ -157,6 +179,18 @@ export default async function soalRoutes(fastify, options) {
 
     if (!modulId || !soals || soals.length === 0) {
       return reply.status(400).send({ error: 'ModulId and soals array are required' })
+    }
+
+    // Validate each soal has exactly one correct answer
+    for (let i = 0; i < soals.length; i++) {
+      const s = soals[i]
+      if (!s.opsis || s.opsis.length < 2) {
+        return reply.status(400).send({ error: `Soal ke-${i + 1}: minimal 2 opsi jawaban` })
+      }
+      const correctCount = s.opsis.filter(o => o.isCorrect).length
+      if (correctCount !== 1) {
+        return reply.status(400).send({ error: `Soal ke-${i + 1}: harus ada tepat 1 jawaban benar` })
+      }
     }
 
     const createdSoals = []

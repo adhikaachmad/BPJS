@@ -1,4 +1,6 @@
 import bcrypt from 'bcryptjs'
+import { validatePasswordStrength } from '../utils/password.js'
+import { logAudit } from '../utils/audit.js'
 
 // Role constants
 const ROLES = {
@@ -7,12 +9,20 @@ const ROLES = {
   ADMIN_KEPWIL: 'ADMIN_KEPWIL'
 }
 
-// Helper function to get kepwil filter for ADMIN_KEPWIL
+// Helper function to get kepwilId filter for ADMIN_KEPWIL
 function getKepwilFilter(request) {
   if (request.user.adminRole === ROLES.ADMIN_KEPWIL) {
-    return request.user.kepwil
+    return request.user.kepwilId
   }
   return null // No filter for SUPER_ADMIN and ADMIN_KP
+}
+
+// Common include for user queries
+const userInclude = {
+  subKategori: { include: { kategori: true } },
+  kepwil: { select: { id: true, nama: true } },
+  kc: { select: { id: true, nama: true } },
+  kakab: { select: { id: true, nama: true } }
 }
 
 export default async function userRoutes(fastify, options) {
@@ -28,21 +38,23 @@ export default async function userRoutes(fastify, options) {
       orderBy: { nama: 'asc' }
     })
 
+    // Get all kepwil for reference
+    const kepwilList = await prisma.kepwil.findMany({ orderBy: { nama: 'asc' } })
+
     // Create CSV header
-    const headers = ['npp', 'nama', 'email', 'posisi', 'vendor', 'kepwil', 'kcKabupaten', 'kakabKabupaten', 'subKategoriId', 'password']
+    const headers = ['npp', 'nama', 'email', 'posisi', 'vendor', 'kepwilId', 'kcId', 'kakabId', 'subKategoriId', 'password']
 
     // Create example rows
     const exampleRows = [
-      ['199001010001', 'Budi Santoso', 'budi@email.com', 'Satpam', 'PT Vendor ABC', 'DKI Jakarta', 'Kota Jakarta Pusat', 'Kota Jakarta Pusat', '1', ''],
-      ['199001010002', 'Siti Rahayu', 'siti@email.com', 'Office Boy', 'PT Vendor XYZ', 'Jawa Barat', 'Kota Bandung', '', '2', ''],
-      ['199001010003', 'Ahmad Fauzi', '', 'Driver', '', 'Jawa Timur', 'Kota Surabaya', 'Kabupaten Sidoarjo', '3', 'custompass123']
+      ['199001010001', 'Budi Santoso', 'budi@email.com', 'Satpam', 'PT Vendor ABC', '11', '145', '145', '1', ''],
+      ['199001010002', 'Siti Rahayu', 'siti@email.com', 'Office Boy', 'PT Vendor XYZ', '12', '160', '', '2', ''],
+      ['199001010003', 'Ahmad Fauzi', '', 'Driver', '', '15', '200', '205', '3', 'custompass123']
     ]
 
     // Build CSV content
     let csv = headers.join(',') + '\n'
     exampleRows.forEach(row => {
       csv += row.map(cell => {
-        // Escape cells containing commas or quotes
         if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
           return '"' + cell.replace(/"/g, '""') + '"'
         }
@@ -58,15 +70,20 @@ export default async function userRoutes(fastify, options) {
     csv += '# email: Email (opsional)\n'
     csv += '# posisi: Jabatan/posisi (wajib)\n'
     csv += '# vendor: Nama perusahaan vendor (opsional)\n'
-    csv += '# kepwil: Kantor Wilayah/Provinsi (opsional)\n'
-    csv += '# kcKabupaten: Kantor Cabang/Kabupaten (opsional)\n'
-    csv += '# kakabKabupaten: Kantor Kabupaten (opsional)\n'
+    csv += '# kepwilId: ID Kepwil/Kantor Wilayah (opsional - lihat daftar di bawah)\n'
+    csv += '# kcId: ID Kantor Cabang (opsional)\n'
+    csv += '# kakabId: ID Kantor Kabupaten (opsional)\n'
     csv += '# subKategoriId: ID Sub Kategori (wajib - lihat daftar di bawah)\n'
-    csv += '# password: Password custom (opsional - default: password123)\n'
+    csv += '# password: Password custom per-user (opsional). Jika kosong, defaultPassword dari request body dipakai. Min 12 char, wajib upper+lower+angka+simbol.\n'
     csv += '\n'
     csv += '# DAFTAR SUB KATEGORI (subKategoriId)\n'
     subKategoris.forEach(sub => {
       csv += `# ${sub.id} = ${sub.nama} (${sub.kategori.nama})\n`
+    })
+    csv += '\n'
+    csv += '# DAFTAR KEPWIL (kepwilId)\n'
+    kepwilList.forEach(kw => {
+      csv += `# ${kw.id} = ${kw.nama}\n`
     })
 
     reply.header('Content-Type', 'text/csv')
@@ -78,10 +95,17 @@ export default async function userRoutes(fastify, options) {
   fastify.post('/bulk-import-csv', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
-    const { csvData, defaultPassword = 'password123' } = request.body
+    const { csvData, defaultPassword } = request.body
 
     if (!csvData || typeof csvData !== 'string') {
       return reply.status(400).send({ error: 'CSV data is required' })
+    }
+
+    // SECURITY: defaultPassword must be explicitly provided and meet password policy.
+    // Removed previous fallback to 'password123'.
+    const defPwError = validatePasswordStrength(defaultPassword)
+    if (defPwError) {
+      return reply.status(400).send({ error: `Default password tidak valid: ${defPwError}` })
     }
 
     // Parse CSV
@@ -105,7 +129,7 @@ export default async function userRoutes(fastify, options) {
     const users = []
     for (let i = 1; i < lines.length; i++) {
       const values = parseCSVLine(lines[i])
-      if (values.length === 0 || values.every(v => !v)) continue // Skip empty rows
+      if (values.length === 0 || values.every(v => !v)) continue
 
       const user = {}
       headers.forEach((header, index) => {
@@ -115,10 +139,11 @@ export default async function userRoutes(fastify, options) {
         }
       })
 
-      // Convert subKategoriId to number
-      if (user.subKategoriId) {
-        user.subKategoriId = parseInt(user.subKategoriId)
-      }
+      // Convert IDs to numbers
+      if (user.subKategoriId) user.subKategoriId = parseInt(user.subKategoriId)
+      if (user.kepwilId) user.kepwilId = parseInt(user.kepwilId)
+      if (user.kcId) user.kcId = parseInt(user.kcId)
+      if (user.kakabId) user.kakabId = parseInt(user.kakabId)
 
       users.push(user)
     }
@@ -128,51 +153,29 @@ export default async function userRoutes(fastify, options) {
     }
 
     // Process users
-    const results = {
-      success: [],
-      failed: []
-    }
-
+    const results = { success: [], failed: [] }
     const hashedDefaultPassword = await bcrypt.hash(defaultPassword, 10)
 
     for (const userData of users) {
       try {
         if (!userData.npp || !userData.nama || !userData.posisi || !userData.subKategoriId) {
-          results.failed.push({
-            data: userData,
-            error: 'Missing required fields (npp, nama, posisi, subKategoriId)'
-          })
+          results.failed.push({ data: userData, error: 'Missing required fields (npp, nama, posisi, subKategoriId)' })
           continue
         }
 
-        const existing = await prisma.user.findUnique({
-          where: { npp: userData.npp }
-        })
-
+        const existing = await prisma.user.findUnique({ where: { npp: userData.npp } })
         if (existing) {
-          results.failed.push({
-            data: userData,
-            error: 'NPP already exists'
-          })
+          results.failed.push({ data: userData, error: 'NPP already exists' })
           continue
         }
 
-        // Check if subKategoriId exists
-        const subKategori = await prisma.subKategori.findUnique({
-          where: { id: userData.subKategoriId }
-        })
-
+        const subKategori = await prisma.subKategori.findUnique({ where: { id: userData.subKategoriId } })
         if (!subKategori) {
-          results.failed.push({
-            data: userData,
-            error: `SubKategori with ID ${userData.subKategoriId} not found`
-          })
+          results.failed.push({ data: userData, error: `SubKategori with ID ${userData.subKategoriId} not found` })
           continue
         }
 
-        const password = userData.password
-          ? await bcrypt.hash(userData.password, 10)
-          : hashedDefaultPassword
+        const password = userData.password ? await bcrypt.hash(userData.password, 10) : hashedDefaultPassword
 
         const user = await prisma.user.create({
           data: {
@@ -181,9 +184,9 @@ export default async function userRoutes(fastify, options) {
             email: userData.email || null,
             posisi: userData.posisi,
             vendor: userData.vendor || null,
-            kepwil: userData.kepwil || null,
-            kcKabupaten: userData.kcKabupaten || null,
-            kakabKabupaten: userData.kakabKabupaten || null,
+            kepwilId: userData.kepwilId || null,
+            kcId: userData.kcId || null,
+            kakabId: userData.kakabId || null,
             password,
             subKategoriId: userData.subKategoriId
           }
@@ -192,13 +195,11 @@ export default async function userRoutes(fastify, options) {
         const { password: _, ...userWithoutPassword } = user
         results.success.push(userWithoutPassword)
       } catch (err) {
-        results.failed.push({
-          data: userData,
-          error: err.message
-        })
+        results.failed.push({ data: userData, error: err.message })
       }
     }
 
+    logAudit(prisma, request, 'USER_BULK_IMPORT_CSV', { details: { total: users.length, successCount: results.success.length, failedCount: results.failed.length } })
     return {
       total: users.length,
       successCount: results.success.length,
@@ -215,7 +216,6 @@ export default async function userRoutes(fastify, options) {
 
     for (let i = 0; i < line.length; i++) {
       const char = line[i]
-
       if (char === '"') {
         if (inQuotes && line[i + 1] === '"') {
           current += '"'
@@ -231,7 +231,6 @@ export default async function userRoutes(fastify, options) {
       }
     }
     result.push(current)
-
     return result
   }
 
@@ -239,17 +238,16 @@ export default async function userRoutes(fastify, options) {
   fastify.get('/', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
-    const { subKategoriId, search, kepwil: filterKepwil, page = 1, limit = 20 } = request.query
+    const { subKategoriId, search, kepwilId: filterKepwilId, page = 1, limit = 20 } = request.query
 
     const where = {}
 
     // Auto-filter by kepwil for ADMIN_KEPWIL
-    const adminKepwil = getKepwilFilter(request)
-    if (adminKepwil) {
-      where.kepwil = adminKepwil
-    } else if (filterKepwil) {
-      // For SUPER_ADMIN and ADMIN_KP, allow manual filter
-      where.kepwil = filterKepwil
+    const adminKepwilId = getKepwilFilter(request)
+    if (adminKepwilId) {
+      where.kepwilId = adminKepwilId
+    } else if (filterKepwilId) {
+      where.kepwilId = parseInt(filterKepwilId)
     }
 
     if (subKategoriId) {
@@ -262,13 +260,12 @@ export default async function userRoutes(fastify, options) {
         { nama: { contains: search } },
         { email: { contains: search } }
       ]
-      // If there's also a kepwil filter, we need to combine them properly
-      if (where.kepwil) {
+      if (where.kepwilId) {
         where.AND = [
-          { kepwil: where.kepwil },
+          { kepwilId: where.kepwilId },
           { OR: where.OR }
         ]
-        delete where.kepwil
+        delete where.kepwilId
         delete where.OR
       }
     }
@@ -278,9 +275,7 @@ export default async function userRoutes(fastify, options) {
       prisma.user.findMany({
         where,
         include: {
-          subKategori: {
-            include: { kategori: true }
-          },
+          ...userInclude,
           _count: { select: { testSessions: true } }
         },
         orderBy: { createdAt: 'desc' },
@@ -297,9 +292,8 @@ export default async function userRoutes(fastify, options) {
         total,
         totalPages: Math.ceil(total / parseInt(limit))
       },
-      // Include admin role info for frontend
       adminRole: request.user.adminRole,
-      adminKepwil: adminKepwil
+      adminKepwilId: adminKepwilId
     }
   })
 
@@ -311,14 +305,9 @@ export default async function userRoutes(fastify, options) {
     const user = await prisma.user.findUnique({
       where: { id: parseInt(id) },
       include: {
-        subKategori: {
-          include: { kategori: true }
-        },
+        ...userInclude,
         testSessions: {
-          include: {
-            modul: true,
-            hasilTest: true
-          },
+          include: { modul: true, hasilTest: true },
           orderBy: { createdAt: 'desc' }
         }
       }
@@ -328,9 +317,8 @@ export default async function userRoutes(fastify, options) {
       return reply.status(404).send({ error: 'User not found' })
     }
 
-    // ADMIN_KEPWIL can only view users in their kepwil
-    const adminKepwil = getKepwilFilter(request)
-    if (adminKepwil && user.kepwil !== adminKepwil) {
+    const adminKepwilId = getKepwilFilter(request)
+    if (adminKepwilId && user.kepwilId !== adminKepwilId) {
       return reply.status(403).send({ error: 'Anda tidak memiliki akses ke user ini' })
     }
 
@@ -341,16 +329,16 @@ export default async function userRoutes(fastify, options) {
   fastify.post('/', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
-    const { npp, nama, email, posisi, vendor, kepwil, kcKabupaten, kakabKabupaten, password, subKategoriId } = request.body
+    const { npp, nama, email, posisi, vendor, kepwilId, kcId, kakabId, password, subKategoriId } = request.body
 
     if (!npp || !nama || !posisi || !password || !subKategoriId) {
       return reply.status(400).send({ error: 'NPP, nama, posisi, password, and subKategoriId are required' })
     }
 
     // ADMIN_KEPWIL can only create users for their own kepwil
-    const adminKepwil = getKepwilFilter(request)
-    if (adminKepwil) {
-      if (!kepwil || kepwil !== adminKepwil) {
+    const adminKepwilId = getKepwilFilter(request)
+    if (adminKepwilId) {
+      if (!kepwilId || parseInt(kepwilId) !== adminKepwilId) {
         return reply.status(403).send({ error: 'Anda hanya dapat membuat user untuk wilayah Anda' })
       }
     }
@@ -360,7 +348,6 @@ export default async function userRoutes(fastify, options) {
       return reply.status(409).send({ error: 'NPP already exists' })
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
     const user = await prisma.user.create({
@@ -370,20 +357,16 @@ export default async function userRoutes(fastify, options) {
         email: email || null,
         posisi,
         vendor: vendor || null,
-        kepwil: kepwil || null,
-        kcKabupaten: kcKabupaten || null,
-        kakabKabupaten: kakabKabupaten || null,
+        kepwilId: kepwilId ? parseInt(kepwilId) : null,
+        kcId: kcId ? parseInt(kcId) : null,
+        kakabId: kakabId ? parseInt(kakabId) : null,
         password: hashedPassword,
         subKategoriId: parseInt(subKategoriId)
       },
-      include: {
-        subKategori: {
-          include: { kategori: true }
-        }
-      }
+      include: userInclude
     })
 
-    // Remove password from response
+    logAudit(prisma, request, 'USER_CREATE', { target: 'user', targetId: user.id, details: { npp: user.npp, posisi: user.posisi } })
     const { password: _, ...userWithoutPassword } = user
     return userWithoutPassword
   })
@@ -393,53 +376,41 @@ export default async function userRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
     const { id } = request.params
-    const { npp, nama, email, posisi, vendor, kepwil, kcKabupaten, kakabKabupaten, password, subKategoriId } = request.body
+    const { npp, nama, email, posisi, vendor, kepwilId, kcId, kakabId, password, subKategoriId } = request.body
 
-    // Get existing user
-    const existingUser = await prisma.user.findUnique({
-      where: { id: parseInt(id) }
-    })
-
+    const existingUser = await prisma.user.findUnique({ where: { id: parseInt(id) } })
     if (!existingUser) {
       return reply.status(404).send({ error: 'User tidak ditemukan' })
     }
 
-    // ADMIN_KEPWIL can only update users in their kepwil
-    const adminKepwil = getKepwilFilter(request)
-    if (adminKepwil && existingUser.kepwil !== adminKepwil) {
+    const adminKepwilId = getKepwilFilter(request)
+    if (adminKepwilId && existingUser.kepwilId !== adminKepwilId) {
       return reply.status(403).send({ error: 'Anda tidak memiliki akses untuk mengubah user ini' })
     }
 
-    // ADMIN_KEPWIL cannot change user's kepwil to another kepwil
-    if (adminKepwil && kepwil !== undefined && kepwil !== adminKepwil) {
+    if (adminKepwilId && kepwilId !== undefined && parseInt(kepwilId) !== adminKepwilId) {
       return reply.status(403).send({ error: 'Anda tidak dapat memindahkan user ke wilayah lain' })
     }
 
-    // Check if NPP already exists for other user
     if (npp) {
       const existing = await prisma.user.findFirst({
-        where: {
-          npp,
-          NOT: { id: parseInt(id) }
-        }
+        where: { npp, NOT: { id: parseInt(id) } }
       })
       if (existing) {
         return reply.status(409).send({ error: 'NPP already exists' })
       }
     }
 
-    // Build update data
     const updateData = {}
     if (nama) updateData.nama = nama
     if (email !== undefined) updateData.email = email || null
     if (posisi) updateData.posisi = posisi
     if (vendor !== undefined) updateData.vendor = vendor || null
-    if (kepwil !== undefined) updateData.kepwil = kepwil || null
-    if (kcKabupaten !== undefined) updateData.kcKabupaten = kcKabupaten || null
-    if (kakabKabupaten !== undefined) updateData.kakabKabupaten = kakabKabupaten || null
+    if (kepwilId !== undefined) updateData.kepwilId = kepwilId ? parseInt(kepwilId) : null
+    if (kcId !== undefined) updateData.kcId = kcId ? parseInt(kcId) : null
+    if (kakabId !== undefined) updateData.kakabId = kakabId ? parseInt(kakabId) : null
     if (subKategoriId) updateData.subKategoriId = parseInt(subKategoriId)
 
-    // Hash password if provided
     if (password) {
       updateData.password = await bcrypt.hash(password, 10)
     }
@@ -447,16 +418,52 @@ export default async function userRoutes(fastify, options) {
     const user = await prisma.user.update({
       where: { id: parseInt(id) },
       data: updateData,
-      include: {
-        subKategori: {
-          include: { kategori: true }
-        }
-      }
+      include: userInclude
     })
 
-    // Remove password from response
+    if (password) {
+      // force re-login on the user's existing sessions
+      await prisma.user.update({ where: { id: parseInt(id) }, data: { tokensInvalidBefore: new Date() } })
+    }
+
+    logAudit(prisma, request, 'USER_UPDATE', {
+      target: 'user', targetId: user.id,
+      details: { npp: user.npp, fieldsChanged: Object.keys(updateData), passwordChanged: !!password }
+    })
     const { password: _, ...userWithoutPassword } = user
     return userWithoutPassword
+  })
+
+  // Admin reset user password
+  fastify.put('/:id/reset-password', {
+    preHandler: [fastify.authenticateAdmin]
+  }, async (request, reply) => {
+    const { id } = request.params
+    const { newPassword } = request.body
+
+    const pwError = validatePasswordStrength(newPassword)
+    if (pwError) {
+      return reply.status(400).send({ error: pwError })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: parseInt(id) } })
+    if (!user) {
+      return reply.status(404).send({ error: 'User tidak ditemukan' })
+    }
+
+    const adminKepwilId = getKepwilFilter(request)
+    if (adminKepwilId && user.kepwilId !== adminKepwilId) {
+      return reply.status(403).send({ error: 'Anda tidak memiliki akses untuk mereset password user ini' })
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10)
+    await prisma.user.update({
+      where: { id: parseInt(id) },
+      data: { password: hashed, tokensInvalidBefore: new Date() }
+    })
+
+    logAudit(prisma, request, 'USER_PASSWORD_RESET', { target: 'user', targetId: parseInt(id), details: { npp: user.npp } })
+    return { message: 'Password user berhasil direset' }
   })
 
   // Delete user (admin only)
@@ -465,36 +472,23 @@ export default async function userRoutes(fastify, options) {
   }, async (request, reply) => {
     const { id } = request.params
 
-    // Get existing user
-    const existingUser = await prisma.user.findUnique({
-      where: { id: parseInt(id) }
-    })
-
+    const existingUser = await prisma.user.findUnique({ where: { id: parseInt(id) } })
     if (!existingUser) {
       return reply.status(404).send({ error: 'User tidak ditemukan' })
     }
 
-    // ADMIN_KEPWIL can only delete users in their kepwil
-    const adminKepwil = getKepwilFilter(request)
-    if (adminKepwil && existingUser.kepwil !== adminKepwil) {
+    const adminKepwilId = getKepwilFilter(request)
+    if (adminKepwilId && existingUser.kepwilId !== adminKepwilId) {
       return reply.status(403).send({ error: 'Anda tidak memiliki akses untuk menghapus user ini' })
     }
 
-    // Check if user has test sessions
-    const sessions = await prisma.testSession.count({
-      where: { userId: parseInt(id) }
-    })
-
+    const sessions = await prisma.testSession.count({ where: { userId: parseInt(id) } })
     if (sessions > 0) {
-      return reply.status(400).send({
-        error: 'Cannot delete user with test history. Please archive instead.'
-      })
+      return reply.status(400).send({ error: 'Cannot delete user with test history. Please archive instead.' })
     }
 
-    await prisma.user.delete({
-      where: { id: parseInt(id) }
-    })
-
+    await prisma.user.delete({ where: { id: parseInt(id) } })
+    logAudit(prisma, request, 'USER_DELETE', { target: 'user', targetId: parseInt(id), details: { npp: existingUser.npp } })
     return { message: 'User deleted successfully' }
   })
 
@@ -502,46 +496,36 @@ export default async function userRoutes(fastify, options) {
   fastify.post('/bulk-import', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
-    const { users, defaultPassword = 'password123' } = request.body
+    const { users, defaultPassword } = request.body
 
     if (!users || !Array.isArray(users) || users.length === 0) {
       return reply.status(400).send({ error: 'Users array is required' })
     }
 
-    const results = {
-      success: [],
-      failed: []
+    // SECURITY: defaultPassword must be explicitly provided and meet password policy.
+    // Removed previous fallback to 'password123'.
+    const defPwError = validatePasswordStrength(defaultPassword)
+    if (defPwError) {
+      return reply.status(400).send({ error: `Default password tidak valid: ${defPwError}` })
     }
 
-    // Hash default password once
+    const results = { success: [], failed: [] }
     const hashedDefaultPassword = await bcrypt.hash(defaultPassword, 10)
 
     for (const userData of users) {
       try {
         if (!userData.npp || !userData.nama || !userData.posisi || !userData.subKategoriId) {
-          results.failed.push({
-            data: userData,
-            error: 'Missing required fields (npp, nama, posisi, subKategoriId)'
-          })
+          results.failed.push({ data: userData, error: 'Missing required fields (npp, nama, posisi, subKategoriId)' })
           continue
         }
 
-        const existing = await prisma.user.findUnique({
-          where: { npp: userData.npp }
-        })
-
+        const existing = await prisma.user.findUnique({ where: { npp: userData.npp } })
         if (existing) {
-          results.failed.push({
-            data: userData,
-            error: 'NPP already exists'
-          })
+          results.failed.push({ data: userData, error: 'NPP already exists' })
           continue
         }
 
-        // Use custom password or default
-        const password = userData.password
-          ? await bcrypt.hash(userData.password, 10)
-          : hashedDefaultPassword
+        const password = userData.password ? await bcrypt.hash(userData.password, 10) : hashedDefaultPassword
 
         const user = await prisma.user.create({
           data: {
@@ -550,25 +534,22 @@ export default async function userRoutes(fastify, options) {
             email: userData.email || null,
             posisi: userData.posisi,
             vendor: userData.vendor || null,
-            kepwil: userData.kepwil || null,
-            kcKabupaten: userData.kcKabupaten || null,
-            kakabKabupaten: userData.kakabKabupaten || null,
+            kepwilId: userData.kepwilId ? parseInt(userData.kepwilId) : null,
+            kcId: userData.kcId ? parseInt(userData.kcId) : null,
+            kakabId: userData.kakabId ? parseInt(userData.kakabId) : null,
             password,
             subKategoriId: parseInt(userData.subKategoriId)
           }
         })
 
-        // Remove password from result
         const { password: _, ...userWithoutPassword } = user
         results.success.push(userWithoutPassword)
       } catch (err) {
-        results.failed.push({
-          data: userData,
-          error: err.message
-        })
+        results.failed.push({ data: userData, error: err.message })
       }
     }
 
+    logAudit(prisma, request, 'USER_BULK_IMPORT', { details: { total: users.length, successCount: results.success.length, failedCount: results.failed.length } })
     return {
       total: users.length,
       successCount: results.success.length,
@@ -583,7 +564,6 @@ export default async function userRoutes(fastify, options) {
   }, async (request, reply) => {
     const { npp } = request.params
 
-    // User can only look up their own data
     if (request.user.role !== 'admin' && request.user.npp !== npp) {
       return reply.status(403).send({ error: 'Forbidden' })
     }
@@ -591,15 +571,10 @@ export default async function userRoutes(fastify, options) {
     const user = await prisma.user.findUnique({
       where: { npp },
       include: {
-        subKategori: {
-          include: { kategori: true }
-        },
+        ...userInclude,
         testSessions: {
           where: { isCompleted: true },
-          include: {
-            modul: true,
-            hasilTest: true
-          },
+          include: { modul: true, hasilTest: true },
           orderBy: { endTime: 'desc' }
         }
       }

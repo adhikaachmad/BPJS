@@ -2,6 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { randomUUID } from 'crypto'
+import { fileTypeFromBuffer } from 'file-type'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -11,13 +12,34 @@ const UPLOAD_DIR = path.join(__dirname, '../../uploads')
 const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos')
 const PDF_DIR = path.join(UPLOAD_DIR, 'pdfs')
 
-// Allowed file types
+const IMAGE_DIR = path.join(UPLOAD_DIR, 'images')
+
+// Allowed file types — keep MIME whitelist AND validate magic bytes (file-type lib).
+// Client-provided Content-Type alone is spoofable.
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/ogg']
 const ALLOWED_PDF_TYPES = ['application/pdf']
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
 
-// Max file sizes (in bytes)
-const MAX_VIDEO_SIZE = 500 * 1024 * 1024 // 500MB (no practical limit for videos)
-// No limit for PDF - removed as per request
+// Max file sizes (bytes). Hard limits to prevent disk-exhaustion DoS.
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024  // 500 MB
+const MAX_PDF_SIZE   = 50  * 1024 * 1024  // 50 MB
+const MAX_IMAGE_SIZE = 10  * 1024 * 1024  // 10 MB
+
+// Magic-byte verification: ensure the actual file content matches one of the allowed MIME types.
+// Returns null on success, or an error message string.
+async function verifyMagicBytes(buffer, allowedMimes) {
+  const detected = await fileTypeFromBuffer(buffer)
+  if (!detected) {
+    return 'File content unrecognized — cannot verify type'
+  }
+  // jpeg vs jpg normalization
+  const normalized = detected.mime === 'image/jpeg' && allowedMimes.includes('image/jpg')
+    ? 'image/jpg' : detected.mime
+  if (!allowedMimes.includes(normalized) && !allowedMimes.includes(detected.mime)) {
+    return `File content (${detected.mime}) does not match allowed types`
+  }
+  return null
+}
 
 export default async function uploadRoutes(fastify, options) {
   const { prisma } = fastify
@@ -46,8 +68,14 @@ export default async function uploadRoutes(fastify, options) {
       // Check file size
       if (buffer.length > MAX_VIDEO_SIZE) {
         return reply.status(400).send({
-          error: 'File too large. Maximum size: 100MB'
+          error: 'File too large. Maximum size: 500MB'
         })
+      }
+
+      // Verify actual file content matches claimed type (magic bytes)
+      const magicError = await verifyMagicBytes(buffer, ALLOWED_VIDEO_TYPES)
+      if (magicError) {
+        return reply.status(400).send({ error: magicError })
       }
 
       // Generate unique filename
@@ -97,7 +125,18 @@ export default async function uploadRoutes(fastify, options) {
       // Read file buffer
       const buffer = await data.toBuffer()
 
-      // No size limit for PDF
+      // Hard size cap to prevent disk-exhaustion DoS
+      if (buffer.length > MAX_PDF_SIZE) {
+        return reply.status(400).send({
+          error: 'File too large. Maximum size: 50MB'
+        })
+      }
+
+      // Verify actual file content matches claimed type (magic bytes)
+      const magicError = await verifyMagicBytes(buffer, ALLOWED_PDF_TYPES)
+      if (magicError) {
+        return reply.status(400).send({ error: magicError })
+      }
 
       // Generate unique filename
       const ext = '.pdf'
@@ -122,6 +161,60 @@ export default async function uploadRoutes(fastify, options) {
     } catch (err) {
       console.error('PDF upload error:', err)
       return reply.status(500).send({ error: 'Failed to upload PDF' })
+    }
+  })
+
+  // Upload image file
+  fastify.post('/image', {
+    preHandler: [fastify.authenticateAdmin]
+  }, async (request, reply) => {
+    try {
+      const data = await request.file()
+
+      if (!data) {
+        return reply.status(400).send({ error: 'No file uploaded' })
+      }
+
+      if (!ALLOWED_IMAGE_TYPES.includes(data.mimetype)) {
+        return reply.status(400).send({
+          error: 'Invalid file type. Allowed: PNG, JPG, WebP'
+        })
+      }
+
+      const buffer = await data.toBuffer()
+
+      if (buffer.length > MAX_IMAGE_SIZE) {
+        return reply.status(400).send({
+          error: 'File too large. Maximum size: 10MB'
+        })
+      }
+
+      // Verify actual file content matches claimed type (magic bytes)
+      const magicError = await verifyMagicBytes(buffer, ALLOWED_IMAGE_TYPES)
+      if (magicError) {
+        return reply.status(400).send({ error: magicError })
+      }
+
+      const ext = path.extname(data.filename) || '.png'
+      const filename = `${randomUUID()}${ext}`
+      const filepath = path.join(IMAGE_DIR, filename)
+
+      if (!fs.existsSync(IMAGE_DIR)) {
+        fs.mkdirSync(IMAGE_DIR, { recursive: true })
+      }
+
+      fs.writeFileSync(filepath, buffer)
+
+      return {
+        success: true,
+        filename,
+        path: `/uploads/images/${filename}`,
+        size: buffer.length,
+        mimetype: data.mimetype
+      }
+    } catch (err) {
+      console.error('Image upload error:', err)
+      return reply.status(500).send({ error: 'Failed to upload image' })
     }
   })
 

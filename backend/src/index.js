@@ -1,12 +1,14 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import helmet from '@fastify/helmet'
 import jwt from '@fastify/jwt'
 import websocket from '@fastify/websocket'
 import rateLimit from '@fastify/rate-limit'
 import multipart from '@fastify/multipart'
 import fastifyStatic from '@fastify/static'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '../generated/prisma-client/index.js'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -41,13 +43,38 @@ const fastify = Fastify({
 fastify.decorate('prisma', prisma)
 
 // Register plugins
+
+// CORS origins from env. Falls back to localhost dev origins only — production must set CORS_ORIGINS.
+const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5174,http://localhost:3000')
+  .split(',').map(s => s.trim()).filter(Boolean)
 await fastify.register(cors, {
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'https://bpjs2.314playground.com', 'http://bpjs2.314playground.com'],
+  origin: corsOrigins,
   credentials: true
 })
 
+// Security headers (helmet). CSP is permissive enough to keep Vite-built frontend + inline PDF viewer working.
+await fastify.register(helmet, {
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Vue runtime + PDF.js
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      mediaSrc: ["'self'", 'blob:', 'https:'],
+      connectSrc: ["'self'", 'wss:', 'https:'],
+      objectSrc: ["'self'", 'blob:'], // PDF embed
+      frameAncestors: ["'self'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false, // PDF/video embeds break with COEP
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+})
+
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET environment variable is required and must be at least 32 characters. Set it in .env')
+}
 await fastify.register(jwt, {
-  secret: process.env.JWT_SECRET || 'bpjs-kuesioner-secret-key-2024'
+  secret: process.env.JWT_SECRET
 })
 
 await fastify.register(rateLimit, {
@@ -69,12 +96,15 @@ await fastify.register(websocket, {
 })
 
 // Serve static files (frontend) in production
-// In production: serves from parent directory (flat structure via FTP)
-const staticPath = path.join(__dirname, '..')
+// SECURITY: only serve frontend/dist; never fall back to backend folder (would expose .env, source, schema)
+const distPath = path.join(__dirname, '../../frontend/dist')
+if (!fs.existsSync(distPath)) {
+  throw new Error(`Frontend build not found at ${distPath}. Run "npm run build" in frontend/ first. Refusing to start to avoid exposing backend files.`)
+}
 await fastify.register(fastifyStatic, {
-  root: staticPath,
+  root: distPath,
   prefix: '/',
-  decorateReply: false
+  decorateReply: true
 })
 
 // Serve uploaded files with custom headers for PDFs
@@ -102,12 +132,29 @@ fastify.setNotFoundHandler(async (request, reply) => {
   return reply.sendFile('index.html')
 })
 
+// Reject tokens issued before the account's tokensInvalidBefore timestamp
+// (set on logout or password change). Returns true if token is revoked.
+async function isTokenRevoked(request) {
+  const { id, role, iat } = request.user
+  if (!iat) return false
+  const issuedAt = iat * 1000 // JWT iat is seconds, we compare to ms
+  if (role === 'admin') {
+    const admin = await prisma.admin.findUnique({ where: { id }, select: { tokensInvalidBefore: true } })
+    return admin?.tokensInvalidBefore && issuedAt < admin.tokensInvalidBefore.getTime()
+  }
+  const user = await prisma.user.findUnique({ where: { id }, select: { tokensInvalidBefore: true } })
+  return user?.tokensInvalidBefore && issuedAt < user.tokensInvalidBefore.getTime()
+}
+
 // Auth decorator
 fastify.decorate('authenticate', async function (request, reply) {
   try {
     await request.jwtVerify()
+    if (await isTokenRevoked(request)) {
+      return reply.status(401).send({ error: 'Session expired, please login again' })
+    }
   } catch (err) {
-    reply.status(401).send({ error: 'Unauthorized' })
+    return reply.status(401).send({ error: 'Unauthorized' })
   }
 })
 
@@ -115,10 +162,13 @@ fastify.decorate('authenticateAdmin', async function (request, reply) {
   try {
     await request.jwtVerify()
     if (request.user.role !== 'admin') {
-      reply.status(403).send({ error: 'Forbidden - Admin only' })
+      return reply.status(403).send({ error: 'Forbidden - Admin only' })
+    }
+    if (await isTokenRevoked(request)) {
+      return reply.status(401).send({ error: 'Session expired, please login again' })
     }
   } catch (err) {
-    reply.status(401).send({ error: 'Unauthorized' })
+    return reply.status(401).send({ error: 'Unauthorized' })
   }
 })
 

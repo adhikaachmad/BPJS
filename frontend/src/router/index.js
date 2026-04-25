@@ -17,7 +17,7 @@ const routes = [
     path: '/sub-kategori/:subKategoriId',
     name: 'sub-kategori',
     component: () => import('@/pages/SubKategoriPage.vue'),
-    meta: { requiresAuth: true, requiresSubKategoriMatch: true }
+    meta: { requiresAuth: true, requiresSubKategoriMatch: true, hideHeader: true }
   },
   {
     path: '/login',
@@ -53,7 +53,13 @@ const routes = [
     path: '/history',
     name: 'history',
     component: () => import('@/pages/HistoryPage.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, hideHeader: true }
+  },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: () => import('@/pages/ProfilePage.vue'),
+    meta: { requiresAuth: true, hideHeader: true }
   },
   // Admin routes
   {
@@ -113,6 +119,12 @@ const routes = [
     path: '/admin/reports',
     name: 'admin-reports',
     component: () => import('@/pages/admin/ReportsPage.vue'),
+    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+  },
+  {
+    path: '/admin/reset-test',
+    name: 'admin-reset-test',
+    component: () => import('@/pages/admin/ResetTestPage.vue'),
     meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
   },
   // Access Denied page

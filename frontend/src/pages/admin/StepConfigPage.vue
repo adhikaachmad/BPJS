@@ -8,6 +8,7 @@ const loading = ref(true)
 const showModal = ref(false)
 const saving = ref(false)
 const editingStep = ref(null)
+const uploading = ref(false)
 
 const gradientOptions = [
   { from: 'violet-500', to: 'purple-600', name: 'Violet-Purple' },
@@ -45,6 +46,38 @@ function selectGradient(opt) {
   editingStep.value.gradientTo = opt.to
 }
 
+async function handleImageUpload(event) {
+  const file = event.target.files[0]
+  if (!file) return
+
+  const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+  if (!allowed.includes(file.type)) {
+    alert('Format file tidak didukung. Gunakan PNG, JPG, atau WebP.')
+    return
+  }
+
+  uploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await api.post('/upload/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+
+    editingStep.value.image = response.data.path
+  } catch (err) {
+    console.error(err)
+    alert('Gagal upload gambar')
+  } finally {
+    uploading.value = false
+  }
+}
+
+function removeImage() {
+  editingStep.value.image = null
+}
+
 async function saveStep() {
   if (!editingStep.value) return
 
@@ -54,7 +87,8 @@ async function saveStep() {
       nama: editingStep.value.nama,
       deskripsi: editingStep.value.deskripsi,
       gradientFrom: editingStep.value.gradientFrom,
-      gradientTo: editingStep.value.gradientTo
+      gradientTo: editingStep.value.gradientTo,
+      image: editingStep.value.image
     })
     showModal.value = false
     await fetchSteps()
@@ -96,10 +130,15 @@ function getStepLabel(id) {
         >
           <!-- Preview Header -->
           <div
-            class="p-6 text-white"
+            class="p-6 text-white relative overflow-hidden"
             :class="`bg-gradient-to-br from-${step.gradientFrom} to-${step.gradientTo}`"
           >
-            <div class="opacity-90" v-html="step.icon"></div>
+            <!-- Image Preview -->
+            <div v-if="step.image" class="flex items-center justify-center">
+              <img :src="step.image" :alt="step.nama" class="h-24 object-contain rounded-lg" />
+            </div>
+            <!-- SVG Icon Fallback -->
+            <div v-else class="opacity-90" v-html="step.icon"></div>
             <h3 class="text-xl font-bold mt-4">{{ step.nama }}</h3>
           </div>
 
@@ -136,13 +175,55 @@ function getStepLabel(id) {
             <div class="mb-6">
               <label class="block text-gray-700 mb-2 font-medium">Preview</label>
               <div
-                class="p-4 rounded-xl text-white"
+                class="p-4 rounded-xl text-white relative overflow-hidden"
                 :class="`bg-gradient-to-br from-${editingStep?.gradientFrom} to-${editingStep?.gradientTo}`"
               >
-                <div class="opacity-90" v-html="editingStep?.icon"></div>
+                <div v-if="editingStep?.image" class="flex items-center justify-center">
+                  <img :src="editingStep.image" :alt="editingStep.nama" class="h-20 object-contain rounded-lg" />
+                </div>
+                <div v-else class="opacity-90" v-html="editingStep?.icon"></div>
                 <h3 class="text-lg font-bold mt-2">{{ editingStep?.nama }}</h3>
                 <p class="text-sm opacity-80 mt-1">{{ editingStep?.deskripsi }}</p>
               </div>
+            </div>
+
+            <!-- Image Upload -->
+            <div class="mb-4">
+              <label class="block text-gray-700 mb-2 font-medium">Gambar Step</label>
+              <div v-if="editingStep?.image" class="mb-3">
+                <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <img :src="editingStep.image" class="h-16 w-16 object-contain rounded-lg bg-white border" />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm text-gray-600 truncate">{{ editingStep.image }}</p>
+                  </div>
+                  <button
+                    type="button"
+                    @click="removeImage"
+                    class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Hapus gambar"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <label
+                class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-bpjs-400 hover:bg-gray-50 transition-all"
+                :class="uploading ? 'opacity-50 pointer-events-none' : ''"
+              >
+                <div class="flex flex-col items-center">
+                  <svg v-if="!uploading" class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <div v-else class="w-8 h-8 border-4 border-gray-300 border-t-bpjs-500 rounded-full animate-spin mb-2"></div>
+                  <p class="text-sm text-gray-500">
+                    {{ uploading ? 'Mengupload...' : (editingStep?.image ? 'Ganti gambar' : 'Upload gambar') }}
+                  </p>
+                  <p class="text-xs text-gray-400 mt-1">PNG, JPG, WebP</p>
+                </div>
+                <input type="file" class="hidden" accept="image/png,image/jpeg,image/webp" @change="handleImageUpload" />
+              </label>
             </div>
 
             <!-- Nama -->

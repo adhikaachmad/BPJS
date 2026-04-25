@@ -1,16 +1,18 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  output        = "../generated/prisma-client"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.0.x", "rhel-openssl-3.0.x", "rhel-openssl-1.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 model Kategori {
   id           Int           @id @default(autoincrement())
   nama         String
-  deskripsi    String?
+  deskripsi    String?       @db.Text
   icon         String?
   subKategoris SubKategori[]
   createdAt    DateTime      @default(now())
@@ -21,7 +23,7 @@ model SubKategori {
   id           Int           @id @default(autoincrement())
   nama         String
   slug         String        @unique
-  deskripsi    String?
+  deskripsi    String?       @db.Text
   isActive     Boolean       @default(false)
   kategoriId   Int
   kategori     Kategori      @relation(fields: [kategoriId], references: [id], onDelete: Cascade)
@@ -30,6 +32,8 @@ model SubKategori {
   periodeTests PeriodeTest[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+
+  @@index([kategoriId])
 }
 
 // Tipe modul: KUPAS_TUNTAS (materi), JITU (quiz), DO_CHECK (koreksi), REKAPIN (rekap)
@@ -37,10 +41,10 @@ model Modul {
   id              Int              @id @default(autoincrement())
   nama            String
   tipe            String           @default("JITU") // KUPAS_TUNTAS, JITU, DO_CHECK, REKAPIN
-  deskripsi       String?
+  deskripsi       String?          @db.Text
   gradientFrom    String
   gradientTo      String
-  icon            String?
+  icon            String?          @db.Text
   durasi          Int              @default(30)
   urutan          Int              @default(1) // Urutan tampil di halaman
   // Scheduling untuk JITU
@@ -57,13 +61,15 @@ model Modul {
   materiProgress  MateriProgress[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+
+  @@index([subKategoriId])
 }
 
 // Konten materi untuk KUPAS TUNTAS
 model Materi {
   id        Int      @id @default(autoincrement())
   judul     String
-  konten    String   // HTML content untuk teks dan gambar
+  konten    String   @db.LongText // HTML content untuk teks dan gambar
   videoUrl  String?  // URL embed video (YouTube, dll)
   pdfUrl    String?  // URL file PDF
   urutan    Int      @default(1)
@@ -71,6 +77,8 @@ model Materi {
   modul     Modul    @relation(fields: [modulId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([modulId])
 }
 
 // Track progress baca materi
@@ -86,12 +94,14 @@ model MateriProgress {
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, modulId])
+  @@index([userId])
+  @@index([modulId])
 }
 
 model Soal {
   id         Int       @id @default(autoincrement())
-  pertanyaan String
-  pembahasan String?   // Penjelasan jawaban untuk DO-CHECK
+  pertanyaan String    @db.Text
+  pembahasan String?   @db.Text // Penjelasan jawaban untuk DO-CHECK
   bobot      Int       @default(1)
   modulId    Int
   modul      Modul     @relation(fields: [modulId], references: [id], onDelete: Cascade)
@@ -99,15 +109,55 @@ model Soal {
   jawabans   Jawaban[]
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+
+  @@index([modulId])
 }
 
 model Opsi {
   id        Int      @id @default(autoincrement())
-  teks      String
+  teks      String   @db.Text
   isCorrect Boolean  @default(false)
   soalId    Int
   soal      Soal     @relation(fields: [soalId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@index([soalId])
+}
+
+// Lokasi - Struktur organisasi BPJS (Kepwil > KC > Kantor Kabupaten)
+model Kepwil {
+  id            Int            @id @default(autoincrement())
+  nama          String         @unique // "I", "II", ..., "XII"
+  kantorCabangs KantorCabang[]
+  users         User[]
+  admins        Admin[]
+  createdAt     DateTime       @default(now())
+}
+
+model KantorCabang {
+  id               Int               @id @default(autoincrement())
+  nama             String
+  kepwilId         Int
+  kepwil           Kepwil            @relation(fields: [kepwilId], references: [id], onDelete: Cascade)
+  kantorKabupatens KantorKabupaten[]
+  usersKc          User[]            @relation("UserKC")
+  admins           Admin[]
+  createdAt        DateTime          @default(now())
+
+  @@unique([nama, kepwilId])
+  @@index([kepwilId])
+}
+
+model KantorKabupaten {
+  id             Int          @id @default(autoincrement())
+  nama           String
+  kantorCabangId Int
+  kantorCabang   KantorCabang @relation(fields: [kantorCabangId], references: [id], onDelete: Cascade)
+  usersKakab     User[]       @relation("UserKakab")
+  createdAt      DateTime     @default(now())
+
+  @@unique([nama, kantorCabangId])
+  @@index([kantorCabangId])
 }
 
 model User {
@@ -118,9 +168,16 @@ model User {
   email                   String?
   vendor                  String?                  // Nama vendor (perusahaan outsourcing)
   posisi                  String                   // Satpam, Office Boy, Driver, dll
-  kepwil                  String?                  // Kantor Wilayah (Provinsi)
-  kcKabupaten             String?                  // Kantor Cabang (Kabupaten/Kota)
-  kakabKabupaten          String?                  // Kantor Kabupaten (Kabupaten/Kota)
+  failedLoginAttempts     Int                      @default(0) // brute-force lockout counter
+  lockedUntil             DateTime?                // null = unlocked; future timestamp = locked
+  lastLoginAt             DateTime?                // last successful login (replaces in-memory session map)
+  tokensInvalidBefore     DateTime?                // JWTs with iat before this are rejected (force-logout / password-change revocation)
+  kepwilId                Int?                     // Kedeputian Wilayah (I-XII)
+  kepwil                  Kepwil?                  @relation(fields: [kepwilId], references: [id])
+  kcId                    Int?                     // Kantor Cabang
+  kc                      KantorCabang?            @relation("UserKC", fields: [kcId], references: [id])
+  kakabId                 Int?                     // Kantor Kabupaten/Kota
+  kakab                   KantorKabupaten?         @relation("UserKakab", fields: [kakabId], references: [id])
   subKategoriId           Int
   subKategori             SubKategori              @relation(fields: [subKategoriId], references: [id])
   testSessions            TestSession[]
@@ -129,6 +186,11 @@ model User {
   testSessionPeriodes     TestSessionPeriode[]
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
+
+  @@index([subKategoriId])
+  @@index([kepwilId])
+  @@index([kcId])
+  @@index([kakabId])
 }
 
 model TestSession {
@@ -141,7 +203,7 @@ model TestSession {
   endTime     DateTime?
   isActive    Boolean    @default(true)
   isCompleted Boolean    @default(false)
-  soalOrder   String
+  soalOrder   String     @db.Text
   currentSoal Int        @default(0)
   jawabans    Jawaban[]
   hasilTest   HasilTest?
@@ -149,6 +211,8 @@ model TestSession {
   updatedAt   DateTime   @updatedAt
 
   @@unique([userId, modulId, isActive])
+  @@index([userId])
+  @@index([modulId])
 }
 
 model Jawaban {
@@ -162,6 +226,8 @@ model Jawaban {
   updatedAt     DateTime    @updatedAt
 
   @@unique([testSessionId, soalId])
+  @@index([testSessionId])
+  @@index([soalId])
 }
 
 model HasilTest {
@@ -176,14 +242,24 @@ model HasilTest {
 }
 
 model Admin {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  password  String
-  nama      String
-  role      String   @default("SUPER_ADMIN") // SUPER_ADMIN, ADMIN_KP, ADMIN_KEPWIL
-  kepwil    String?  // Kantor Wilayah (untuk ADMIN_KEPWIL)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  Int           @id @default(autoincrement())
+  username            String        @unique
+  password            String
+  nama                String
+  role                String        @default("ADMIN_KEPWIL") // SUPER_ADMIN, ADMIN_KP, ADMIN_KEPWIL — default least-privilege for safety
+  failedLoginAttempts Int           @default(0) // brute-force lockout counter
+  lockedUntil         DateTime?     // null = unlocked; future timestamp = locked
+  lastLoginAt         DateTime?     // last successful login
+  tokensInvalidBefore DateTime?     // JWTs with iat before this are rejected (force-logout / password-change revocation)
+  kepwilId            Int?          // Kedeputian Wilayah (untuk ADMIN_KEPWIL)
+  kepwil    Kepwil?       @relation(fields: [kepwilId], references: [id])
+  kcId      Int?          // Unit Kerja / Kantor Cabang
+  kc        KantorCabang? @relation(fields: [kcId], references: [id])
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([kepwilId])
+  @@index([kcId])
 }
 
 // Periode Test - jadwal test bulanan per sub-kategori
@@ -207,6 +283,7 @@ model PeriodeTest {
   updatedAt       DateTime      @updatedAt
 
   @@unique([subKategoriId, bulan, tahun])
+  @@index([subKategoriId])
 }
 
 // Materi untuk Periode Test
@@ -215,7 +292,7 @@ model MateriPeriode {
   periodeTestId Int
   periodeTest   PeriodeTest   @relation(fields: [periodeTestId], references: [id], onDelete: Cascade)
   judul         String
-  konten        String        // HTML content untuk teks
+  konten        String        @db.LongText // HTML content untuk teks
   videoType     String?       // 'url' atau 'upload'
   videoUrl      String?       // URL eksternal (YouTube, Vimeo, dll)
   videoFile     String?       // Path file video yang diupload
@@ -223,6 +300,8 @@ model MateriPeriode {
   urutan        Int           @default(1)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  @@index([periodeTestId])
 }
 
 // Progress baca materi per periode
@@ -238,6 +317,8 @@ model MateriProgressPeriode {
   updatedAt     DateTime      @updatedAt
 
   @@unique([userId, periodeTestId])
+  @@index([userId])
+  @@index([periodeTestId])
 }
 
 // Soal untuk Periode Test (terpisah dari Soal lama untuk backward compatibility)
@@ -245,16 +326,21 @@ model SoalPeriode {
   id            Int           @id @default(autoincrement())
   periodeTestId Int
   periodeTest   PeriodeTest   @relation(fields: [periodeTestId], references: [id], onDelete: Cascade)
-  pertanyaan    String
-  opsiA         String
-  opsiB         String
-  opsiC         String
-  opsiD         String
+  pertanyaan    String        @db.Text
+  opsiA         String        @db.Text
+  opsiB         String        @db.Text
+  opsiC         String        @db.Text
+  opsiD         String        @db.Text
   jawabanBenar  String        // A, B, C, atau D
-  pembahasan    String?       // Penjelasan untuk Do-Check
+  pembahasan    String?       @db.Text // Penjelasan untuk Do-Check
+  materiPokok   String?       @db.Text // Pokok/Sub Pokok Materi
+  referensi     String?       @db.Text // Referensi sumber soal
+  ukpf          String?       // Kategori UKPF (MML, KDK, MMKFK, MSDM)
   urutan        Int           @default(0)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  @@index([periodeTestId])
 }
 
 // Test Session untuk Periode Test
@@ -273,6 +359,8 @@ model TestSessionPeriode {
   updatedAt     DateTime      @updatedAt
 
   @@unique([userId, periodeTestId])
+  @@index([userId])
+  @@index([periodeTestId])
 }
 
 // Jawaban untuk Periode Test
@@ -286,6 +374,8 @@ model JawabanPeriode {
   updatedAt             DateTime             @updatedAt
 
   @@unique([testSessionPeriodeId, soalPeriodeId])
+  @@index([testSessionPeriodeId])
+  @@index([soalPeriodeId])
 }
 
 // Hasil Test untuk Periode Test
@@ -301,12 +391,34 @@ model HasilTestPeriode {
   createdAt             DateTime             @default(now())
 }
 
+// Audit trail for security-relevant actions (logins, admin CRUD, destructive ops, etc.)
+// Append-only — never UPDATE or DELETE existing rows.
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  actorType  String   // 'user', 'admin', 'system'
+  actorId    Int?     // null for unauthenticated/system actions
+  actorLabel String?  // username or NPP, for searchability without joining
+  action     String   // LOGIN_SUCCESS, LOGIN_FAIL, LOGIN_LOCKED, LOGOUT, PASSWORD_CHANGE, ADMIN_CREATE, etc.
+  target     String?  // model name being acted on (admin, user, kategori, ...)
+  targetId   Int?
+  details    String?  @db.Text // JSON-encoded extra context
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorType, actorId])
+  @@index([action])
+  @@index([target, targetId])
+  @@index([createdAt])
+}
+
 // Konfigurasi Step Pembelajaran (Kupas Tuntas, JITU, Do-Check, Rekapin)
 model StepConfig {
   id           String   @id // materi, test, docheck, rekap
   nama         String   // Nama yang ditampilkan (Kupas Tuntas, JITU, dll)
-  deskripsi    String   // Deskripsi step
-  icon         String   // SVG icon string
+  deskripsi    String   @db.Text // Deskripsi step
+  icon         String   @db.Text // SVG icon string
+  image        String?  // Path to uploaded image
   gradientFrom String   // Tailwind gradient color (e.g., violet-500)
   gradientTo   String   // Tailwind gradient color (e.g., purple-600)
   urutan       Int      @default(1)

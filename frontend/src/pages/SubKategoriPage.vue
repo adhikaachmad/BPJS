@@ -55,7 +55,7 @@ const steps = computed(() => {
       count: periode.jumlahSoal,
       countLabel: 'soal',
       completed: progress.testCompleted,
-      canAccess: progress.materiCompleted && periode.status === 'aktif',
+      canAccess: periode.status === 'aktif',
       status: getTestStatus(periode, progress),
       statusClass: getTestStatusClass(periode, progress),
       scheduleInfo: getScheduleInfo(periode),
@@ -132,7 +132,6 @@ async function loadData() {
 
 function getTestStatus(periode, progress) {
   if (progress.testCompleted) return 'Selesai'
-  if (!progress.materiCompleted) return 'Baca materi dulu'
   if (periode.status === 'terjadwal') return 'Belum Dibuka'
   if (periode.status === 'docheck' || periode.status === 'selesai') return 'Waktu Habis'
   if (periode.status === 'aktif') return 'Mulai Test'
@@ -142,7 +141,7 @@ function getTestStatus(periode, progress) {
 function getTestStatusClass(periode, progress) {
   if (progress.testCompleted) return 'bg-green-100 text-green-700'
   if (periode.status === 'terjadwal') return 'bg-yellow-100 text-yellow-700'
-  if (periode.status === 'aktif' && progress.materiCompleted) return 'bg-blue-100 text-blue-700'
+  if (periode.status === 'aktif') return 'bg-blue-100 text-blue-700'
   return 'bg-gray-100 text-gray-500'
 }
 
@@ -180,15 +179,10 @@ async function startTest() {
   const periode = activePeriode.value
   const progress = periode.userProgress || {}
 
-  if (!progress.materiCompleted) {
-    alert('Selesaikan materi terlebih dahulu')
-    return
-  }
-
   if (periode.status !== 'aktif') {
-    alert(periode.status === 'terjadwal'
+    error.value = periode.status === 'terjadwal'
       ? 'Test belum dibuka, silakan tunggu jadwal'
-      : 'Waktu pengerjaan test sudah berakhir')
+      : 'Waktu pengerjaan test sudah berakhir'
     return
   }
 
@@ -243,47 +237,55 @@ async function handleLogout() {
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div class="flex items-center justify-between">
             <div class="flex items-center space-x-4">
-              <router-link to="/">
+              <router-link :to="`/sub-kategori/${route.params.subKategoriId}`">
                 <img src="/images/Asset2.png" alt="BPJS Kesehatan" class="h-10" />
               </router-link>
               <div class="hidden sm:block h-8 w-px bg-gray-200"></div>
               <div class="hidden sm:block">
                 <nav class="flex items-center text-sm text-gray-500">
-                  <router-link to="/" class="hover:text-green-600">Beranda</router-link>
-                  <svg class="w-4 h-4 mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
                   <span class="text-gray-900 font-medium">{{ subKategori?.nama }}</span>
                 </nav>
               </div>
             </div>
 
             <!-- User Menu -->
-            <div v-if="authStore.isAuthenticated" class="flex items-center space-x-4">
+            <div v-if="authStore.isAuthenticated" class="flex items-center space-x-1 sm:space-x-3">
               <router-link
                 to="/history"
-                class="text-sm text-gray-600 hover:text-green-600 transition-colors flex items-center"
+                class="px-3 py-2 text-sm text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all flex items-center"
               >
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Riwayat
+                <span class="hidden sm:inline">Riwayat</span>
               </router-link>
-              <div class="h-6 w-px bg-gray-200"></div>
+              <router-link
+                to="/profile"
+                class="px-3 py-2 text-sm text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all flex items-center"
+              >
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span class="hidden sm:inline">Profil</span>
+              </router-link>
+              <div class="h-6 w-px bg-gray-200 mx-1"></div>
               <div class="flex items-center">
                 <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-2">
                   <span class="text-green-600 font-semibold text-sm">{{ authStore.user?.nama?.charAt(0) }}</span>
                 </div>
-                <div class="hidden md:block text-sm">
+                <div class="hidden md:block text-sm mr-2">
                   <p class="font-medium text-gray-900">{{ authStore.user?.nama }}</p>
                   <p class="text-gray-500 text-xs">{{ authStore.user?.posisi }}</p>
                 </div>
               </div>
               <button
                 @click="handleLogout"
-                class="text-sm text-gray-500 hover:text-red-600 transition-colors"
+                class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                title="Keluar"
               >
-                Logout
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
               </button>
             </div>
           </div>

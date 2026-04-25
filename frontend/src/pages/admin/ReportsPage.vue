@@ -72,7 +72,7 @@ async function fetchResults() {
     }
     Object.keys(params).forEach(k => !params[k] && delete params[k])
 
-    const response = await api.get('/admin/results', { params })
+    const response = await api.get('/admin/results-all', { params })
     results.value = response.data.data
     pagination.value = response.data.pagination
   } catch (err) {
@@ -275,20 +275,17 @@ function formatPeriode(bulan, tahun) {
       <!-- Results Table -->
       <div v-else class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[1400px]">
+          <table class="w-full table-fixed">
             <thead>
               <tr class="bg-gray-50 border-b border-gray-100">
-                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>
-                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendor</th>
-                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kepwil</th>
-                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">KC</th>
-                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kakab</th>
-                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sub Kategori</th>
-                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Modul</th>
-                <th class="px-4 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Materi</th>
-                <th class="px-4 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Skor</th>
-                <th class="px-4 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Benar</th>
-                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Waktu</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:22%">User</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:10%">Kepwil</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:14%">KC</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:14%">Kakab</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:12%">Periode</th>
+                <th class="px-4 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:8%">Skor</th>
+                <th class="px-4 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:8%">Benar</th>
+                <th class="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:12%">Waktu</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -299,66 +296,37 @@ function formatPeriode(bulan, tahun) {
                     <div class="w-9 h-9 bg-gradient-to-br from-bpjs-400 to-bpjs-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
                       <span class="text-white font-bold text-sm">{{ result.user?.nama?.charAt(0) }}</span>
                     </div>
-                    <div class="min-w-0">
-                      <p class="font-medium text-gray-900 truncate">{{ result.user?.nama }}</p>
+                    <div class="min-w-0 overflow-hidden">
+                      <p class="font-medium text-gray-900 truncate" :title="result.user?.nama">{{ result.user?.nama }}</p>
                       <p class="text-xs text-gray-500 font-mono">{{ result.user?.npp }}</p>
                     </div>
                   </div>
                 </td>
-                <!-- Vendor -->
-                <td class="px-4 py-4">
-                  <span v-if="result.user?.vendor" class="inline-flex items-center px-2 py-1 rounded-lg bg-purple-50 text-purple-700 text-xs font-medium max-w-[100px] truncate" :title="result.user?.vendor">
-                    {{ result.user?.vendor }}
-                  </span>
-                  <span v-else class="text-gray-400 text-sm">-</span>
-                </td>
                 <!-- Kepwil -->
                 <td class="px-4 py-4">
-                  <span v-if="result.user?.kepwil" class="inline-flex items-center px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium max-w-[110px] truncate" :title="result.user?.kepwil">
+                  <span v-if="result.user?.kepwil" class="inline-block px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium truncate max-w-full" :title="result.user?.kepwil">
                     {{ result.user?.kepwil }}
                   </span>
                   <span v-else class="text-gray-400 text-sm">-</span>
                 </td>
                 <!-- KC -->
                 <td class="px-4 py-4">
-                  <span v-if="result.user?.kcKabupaten" class="inline-flex items-center px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium max-w-[110px] truncate" :title="result.user?.kcKabupaten">
-                    {{ result.user?.kcKabupaten }}
+                  <span v-if="result.user?.kc" class="inline-block px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium truncate max-w-full" :title="result.user?.kc">
+                    {{ result.user?.kc }}
                   </span>
                   <span v-else class="text-gray-400 text-sm">-</span>
                 </td>
                 <!-- Kakab -->
                 <td class="px-4 py-4">
-                  <span v-if="result.user?.kakabKabupaten" class="inline-flex items-center px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-medium max-w-[110px] truncate" :title="result.user?.kakabKabupaten">
-                    {{ result.user?.kakabKabupaten }}
+                  <span v-if="result.user?.kakab" class="inline-block px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-medium truncate max-w-full" :title="result.user?.kakab">
+                    {{ result.user?.kakab }}
                   </span>
                   <span v-else class="text-gray-400 text-sm">-</span>
                 </td>
-                <!-- Sub Kategori -->
+                <!-- Periode -->
                 <td class="px-4 py-4">
-                  <p class="text-sm text-gray-900">{{ result.modul?.subKategori?.nama }}</p>
-                  <p class="text-xs text-gray-500">{{ result.modul?.subKategori?.kategori?.nama }}</p>
-                </td>
-                <!-- Modul -->
-                <td class="px-4 py-4">
-                  <p class="text-sm text-gray-900 font-medium">{{ result.modul?.nama }}</p>
-                </td>
-                <!-- Materi Status -->
-                <td class="px-4 py-4 text-center">
-                  <span
-                    v-if="result.materiProgress?.isCompleted"
-                    class="inline-flex items-center px-2 py-1 rounded-lg bg-violet-100 text-violet-700 text-xs font-medium"
-                  >
-                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    Selesai
-                  </span>
-                  <span
-                    v-else
-                    class="inline-flex items-center px-2 py-1 rounded-lg bg-gray-100 text-gray-500 text-xs font-medium"
-                  >
-                    Belum
-                  </span>
+                  <p class="text-sm text-gray-900 truncate" :title="result.periode">{{ result.periode }}</p>
+                  <p class="text-xs text-gray-500 truncate">{{ result.subKategori }}</p>
                 </td>
                 <!-- Skor -->
                 <td class="px-4 py-4 text-center">
@@ -377,8 +345,8 @@ function formatPeriode(bulan, tahun) {
                 </td>
                 <!-- Waktu -->
                 <td class="px-4 py-4">
-                  <p class="text-sm text-gray-900">{{ new Date(result.endTime).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) }}</p>
-                  <p class="text-xs text-gray-500">{{ new Date(result.endTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }}</p>
+                  <p class="text-sm text-gray-900">{{ result.endTime ? new Date(result.endTime).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-' }}</p>
+                  <p class="text-xs text-gray-500">{{ result.endTime ? new Date(result.endTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '' }}</p>
                 </td>
               </tr>
             </tbody>
@@ -397,19 +365,40 @@ function formatPeriode(bulan, tahun) {
         </div>
 
         <!-- Pagination -->
-        <div v-if="pagination.totalPages > 1" class="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50">
+        <div v-if="pagination.totalPages > 1" class="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50 gap-3">
           <p class="text-sm text-gray-500">
-            Menampilkan <span class="font-medium">{{ results.length }}</span> dari <span class="font-medium">{{ pagination.total }}</span> hasil
+            Halaman <span class="font-semibold text-gray-700">{{ pagination.page }}</span> dari <span class="font-semibold text-gray-700">{{ pagination.totalPages }}</span>
+            <span class="text-gray-400 mx-1">&middot;</span>
+            <span class="font-medium">{{ pagination.total }}</span> hasil
           </p>
-          <div class="flex space-x-1">
+          <div class="flex items-center space-x-1">
             <button
-              v-for="page in pagination.totalPages"
-              :key="page"
-              @click="pagination.page = page; fetchResults()"
-              class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-              :class="page === pagination.page ? 'bg-bpjs-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
+              @click="pagination.page > 1 && (pagination.page--, fetchResults())"
+              :disabled="pagination.page === 1"
+              class="p-2 rounded-lg text-sm font-medium transition-colors"
+              :class="pagination.page === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100 border border-gray-200 bg-white'"
             >
-              {{ page }}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <button v-if="pagination.page > 3" @click="pagination.page = 1; fetchResults()" class="px-3 py-1.5 rounded-lg text-sm font-medium bg-white text-gray-600 hover:bg-gray-100 border border-gray-200">1</button>
+            <span v-if="pagination.page > 4" class="px-1 text-gray-400 text-sm">...</span>
+            <template v-for="pg in pagination.totalPages" :key="pg">
+              <button
+                v-if="pg >= pagination.page - 2 && pg <= pagination.page + 2"
+                @click="pagination.page = pg; fetchResults()"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                :class="pg === pagination.page ? 'bg-bpjs-500 text-white shadow-sm shadow-bpjs-200' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
+              >{{ pg }}</button>
+            </template>
+            <span v-if="pagination.page < pagination.totalPages - 3" class="px-1 text-gray-400 text-sm">...</span>
+            <button v-if="pagination.page < pagination.totalPages - 2" @click="pagination.page = pagination.totalPages; fetchResults()" class="px-3 py-1.5 rounded-lg text-sm font-medium bg-white text-gray-600 hover:bg-gray-100 border border-gray-200">{{ pagination.totalPages }}</button>
+            <button
+              @click="pagination.page < pagination.totalPages && (pagination.page++, fetchResults())"
+              :disabled="pagination.page === pagination.totalPages"
+              class="p-2 rounded-lg text-sm font-medium transition-colors"
+              :class="pagination.page === pagination.totalPages ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100 border border-gray-200 bg-white'"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
             </button>
           </div>
         </div>

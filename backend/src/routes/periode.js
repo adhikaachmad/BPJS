@@ -64,6 +64,15 @@ export default async function periodeRoutes(fastify, options) {
       return reply.status(400).send({ error: 'SubKategoriId, bulan, dan tahun wajib diisi' })
     }
 
+    const bulanInt = parseInt(bulan)
+    const tahunInt = parseInt(tahun)
+    if (bulanInt < 1 || bulanInt > 12) {
+      return reply.status(400).send({ error: 'Bulan harus antara 1-12' })
+    }
+    if (tahunInt < 2020 || tahunInt > 2100) {
+      return reply.status(400).send({ error: 'Tahun tidak valid' })
+    }
+
     // Check if periode already exists
     const existing = await prisma.periodeTest.findUnique({
       where: {
@@ -110,6 +119,11 @@ export default async function periodeRoutes(fastify, options) {
   }, async (request, reply) => {
     const { id } = request.params
     const { tanggal, jamMulai, jamBerakhir, doCheckBerakhir, status } = request.body
+
+    const existing = await prisma.periodeTest.findUnique({ where: { id: parseInt(id) } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Periode tidak ditemukan' })
+    }
 
     const periode = await prisma.periodeTest.update({
       where: { id: parseInt(id) },
@@ -1059,23 +1073,6 @@ export default async function periodeRoutes(fastify, options) {
       return reply.status(403).send({ error: 'Anda tidak memiliki akses ke test ini' })
     }
 
-    // Check if materi is completed
-    const materiProgress = await prisma.materiProgressPeriode.findUnique({
-      where: {
-        userId_periodeTestId: {
-          userId: user.id,
-          periodeTestId: periode.id
-        }
-      }
-    })
-
-    if (!materiProgress?.isCompleted) {
-      return reply.status(400).send({
-        error: 'Selesaikan materi terlebih dahulu',
-        message: 'Anda harus membaca dan menyelesaikan materi sebelum mengerjakan test'
-      })
-    }
-
     // Check if already has session
     let session = await prisma.testSessionPeriode.findUnique({
       where: {
@@ -1344,6 +1341,277 @@ export default async function periodeRoutes(fastify, options) {
       endTime: session.endTime,
       hasilTest: session.hasilTest,
       soals: soalsWithAnswer
+    }
+  })
+
+  // ===============================
+  // RESET TEST ADMIN ENDPOINTS
+  // ===============================
+
+  // Get periodes for reset test dropdown
+  fastify.get('/admin/reset-test/periodes', {
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
+  }, async (request, reply) => {
+    const { subKategoriId } = request.query
+
+    if (!subKategoriId) {
+      return reply.status(400).send({ error: 'subKategoriId wajib diisi' })
+    }
+
+    const periodes = await prisma.periodeTest.findMany({
+      where: { subKategoriId: parseInt(subKategoriId) },
+      include: {
+        _count: {
+          select: {
+            soals: true,
+            testSessions: true,
+            materiProgress: true
+          }
+        }
+      },
+      orderBy: [{ tahun: 'desc' }, { bulan: 'desc' }]
+    })
+
+    return periodes.map(p => ({
+      id: p.id,
+      nama: p.nama,
+      bulan: p.bulan,
+      tahun: p.tahun,
+      status: p.status,
+      jamMulai: p.jamMulai,
+      jamBerakhir: p.jamBerakhir,
+      jumlahSoal: p._count.soals,
+      jumlahTestSession: p._count.testSessions,
+      jumlahMateriProgress: p._count.materiProgress
+    }))
+  })
+
+  // Get users with test status for a periode
+  fastify.get('/admin/reset-test/users', {
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
+  }, async (request, reply) => {
+    const { periodeTestId, search, page = 1 } = request.query
+
+    if (!periodeTestId) {
+      return reply.status(400).send({ error: 'periodeTestId wajib diisi' })
+    }
+
+    const periode = await prisma.periodeTest.findUnique({
+      where: { id: parseInt(periodeTestId) }
+    })
+
+    if (!periode) {
+      return reply.status(404).send({ error: 'Periode tidak ditemukan' })
+    }
+
+    const perPage = 20
+    const skip = (parseInt(page) - 1) * perPage
+
+    // Build where clause for users in this sub-kategori
+    const whereClause = { subKategoriId: periode.subKategoriId }
+    if (search) {
+      whereClause.OR = [
+        { nama: { contains: search } },
+        { npp: { contains: search } }
+      ]
+    }
+
+    const [users, totalCount] = await Promise.all([
+      prisma.user.findMany({
+        where: whereClause,
+        include: {
+          testSessionPeriodes: {
+            where: { periodeTestId: parseInt(periodeTestId) },
+            include: { hasilTest: true }
+          },
+          materiProgressPeriodes: {
+            where: { periodeTestId: parseInt(periodeTestId) }
+          }
+        },
+        orderBy: { nama: 'asc' },
+        skip,
+        take: perPage
+      }),
+      prisma.user.count({ where: whereClause })
+    ])
+
+    // Count summary across ALL users (not just current page)
+    const allUsers = await prisma.user.findMany({
+      where: { subKategoriId: periode.subKategoriId },
+      include: {
+        testSessionPeriodes: {
+          where: { periodeTestId: parseInt(periodeTestId) },
+          select: { isCompleted: true }
+        }
+      }
+    })
+
+    let completed = 0, inProgress = 0, notStarted = 0
+    for (const u of allUsers) {
+      const session = u.testSessionPeriodes[0]
+      if (!session) {
+        notStarted++
+      } else if (session.isCompleted) {
+        completed++
+      } else {
+        inProgress++
+      }
+    }
+
+    const mappedUsers = users.map(u => {
+      const session = u.testSessionPeriodes[0]
+      const materiProgress = u.materiProgressPeriodes[0]
+      let testStatus = 'belum'
+      if (session?.isCompleted) testStatus = 'selesai'
+      else if (session) testStatus = 'sedang'
+
+      return {
+        id: u.id,
+        npp: u.npp,
+        nama: u.nama,
+        posisi: u.posisi,
+        kepwil: u.kepwil,
+        materiCompleted: materiProgress?.isCompleted || false,
+        materiCompletedAt: materiProgress?.completedAt || null,
+        testStatus,
+        testSessionId: session?.id || null,
+        startTime: session?.startTime || null,
+        endTime: session?.endTime || null,
+        skor: session?.hasilTest?.skor || null,
+        benar: session?.hasilTest?.benar || null,
+        totalSoal: session?.hasilTest?.totalSoal || null
+      }
+    })
+
+    return {
+      users: mappedUsers,
+      pagination: {
+        page: parseInt(page),
+        perPage,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / perPage)
+      },
+      summary: {
+        total: allUsers.length,
+        completed,
+        inProgress,
+        notStarted
+      }
+    }
+  })
+
+  // Reset test sessions for selected users
+  fastify.post('/admin/reset-test', {
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
+  }, async (request, reply) => {
+    const { periodeTestId, userIds, resetAll, resetMateri } = request.body
+
+    if (!periodeTestId) {
+      return reply.status(400).send({ error: 'periodeTestId wajib diisi' })
+    }
+
+    if (!resetAll && (!userIds || !Array.isArray(userIds) || userIds.length === 0)) {
+      return reply.status(400).send({ error: 'userIds wajib diisi atau gunakan resetAll: true' })
+    }
+
+    const periode = await prisma.periodeTest.findUnique({
+      where: { id: parseInt(periodeTestId) }
+    })
+
+    if (!periode) {
+      return reply.status(404).send({ error: 'Periode tidak ditemukan' })
+    }
+
+    // Build where clause for test sessions
+    const sessionWhere = { periodeTestId: parseInt(periodeTestId) }
+    if (!resetAll) {
+      sessionWhere.userId = { in: userIds.map(id => parseInt(id)) }
+    }
+
+    // Get sessions to delete (for counting)
+    const sessionsToDelete = await prisma.testSessionPeriode.findMany({
+      where: sessionWhere,
+      select: { id: true, userId: true }
+    })
+
+    // Execute in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Delete test sessions (JawabanPeriode & HasilTestPeriode cascade automatically)
+      const deletedSessions = await tx.testSessionPeriode.deleteMany({
+        where: sessionWhere
+      })
+
+      let deletedMateri = 0
+      if (resetMateri) {
+        const materiWhere = { periodeTestId: parseInt(periodeTestId) }
+        if (!resetAll) {
+          materiWhere.userId = { in: userIds.map(id => parseInt(id)) }
+        }
+        const result = await tx.materiProgressPeriode.deleteMany({
+          where: materiWhere
+        })
+        deletedMateri = result.count
+      }
+
+      return {
+        deletedSessions: deletedSessions.count,
+        deletedMateri
+      }
+    })
+
+    return {
+      message: `Berhasil mereset ${result.deletedSessions} test session` + (result.deletedMateri > 0 ? ` dan ${result.deletedMateri} progress materi` : ''),
+      ...result
+    }
+  })
+
+  // Reopen periode (change status back to draft/terjadwal)
+  fastify.put('/:id/reopen', {
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
+  }, async (request, reply) => {
+    const { id } = request.params
+    const { targetStatus, jamMulai, jamBerakhir } = request.body
+
+    if (!targetStatus || !['draft', 'terjadwal'].includes(targetStatus)) {
+      return reply.status(400).send({ error: 'targetStatus harus draft atau terjadwal' })
+    }
+
+    const periode = await prisma.periodeTest.findUnique({
+      where: { id: parseInt(id) }
+    })
+
+    if (!periode) {
+      return reply.status(404).send({ error: 'Periode tidak ditemukan' })
+    }
+
+    const updateData = { status: targetStatus }
+
+    if (targetStatus === 'terjadwal') {
+      if (!jamMulai || !jamBerakhir) {
+        return reply.status(400).send({ error: 'jamMulai dan jamBerakhir wajib diisi untuk status terjadwal' })
+      }
+      updateData.jamMulai = new Date(jamMulai)
+      updateData.jamBerakhir = new Date(jamBerakhir)
+    }
+
+    if (targetStatus === 'draft') {
+      updateData.jamMulai = null
+      updateData.jamBerakhir = null
+      updateData.doCheckBerakhir = null
+    }
+
+    const updated = await prisma.periodeTest.update({
+      where: { id: parseInt(id) },
+      data: updateData,
+      include: {
+        subKategori: { include: { kategori: true } },
+        _count: { select: { soals: true, testSessions: true } }
+      }
+    })
+
+    return {
+      message: `Periode berhasil diubah ke status ${targetStatus}`,
+      periode: updated
     }
   })
 

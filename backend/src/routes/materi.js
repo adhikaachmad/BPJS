@@ -397,6 +397,11 @@ export default async function materiRoutes(fastify, options) {
     const { id } = request.params
     const { judul, konten, videoUrl, pdfUrl, urutan } = request.body
 
+    const existing = await prisma.materi.findUnique({ where: { id: parseInt(id) } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Materi tidak ditemukan' })
+    }
+
     const materi = await prisma.materi.update({
       where: { id: parseInt(id) },
       data: { judul, konten, videoUrl, pdfUrl, urutan }
@@ -410,6 +415,11 @@ export default async function materiRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
     const { id } = request.params
+
+    const existing = await prisma.materi.findUnique({ where: { id: parseInt(id) } })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Materi tidak ditemukan' })
+    }
 
     await prisma.materi.delete({
       where: { id: parseInt(id) }

@@ -93,7 +93,7 @@ async function handleLogout() {
 
       <!-- Footer -->
       <p class="text-center text-gray-400 text-sm mt-6">
-        BPJS Kesehatan - SECURE
+        BPJS Kesehatan - PENTAS
       </p>
     </div>
   </div>

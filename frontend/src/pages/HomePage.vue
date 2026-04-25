@@ -12,7 +12,7 @@ const mobileMenuOpen = ref(false)
 // Mapping kategori ke gambar dan display name
 const kategoriConfig = {
   'TAD': {
-    displayName: 'Tenaga Ahli Daya',
+    displayName: 'Tenaga Alih Daya',
     image: '/images/Asset4.png'
   },
   'Pegawai': {
@@ -151,8 +151,8 @@ function getKategoriConfig(nama) {
         <!-- Welcome Badge -->
         <div class="absolute inset-0 flex items-center justify-center p-4">
           <img
-            src="/images/Asset1.png"
-            alt="Welcome to SECURE"
+            src="/images/Asset36.png"
+            alt="Welcome to PENTAS"
             class="w-64 sm:w-80 md:w-96 lg:w-[420px] drop-shadow-2xl transform hover:scale-105 transition-transform duration-500"
           />
         </div>

@@ -8,6 +8,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const history = ref([])
 const loading = ref(true)
+const errorMessage = ref('')
 
 onMounted(async () => {
   try {
@@ -15,6 +16,7 @@ onMounted(async () => {
     history.value = response.data
   } catch (err) {
     console.error(err)
+    errorMessage.value = 'Gagal memuat riwayat test. Silakan coba lagi.'
   } finally {
     loading.value = false
   }
@@ -72,13 +74,13 @@ async function handleLogout() {
       <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-4">
-            <router-link to="/">
+            <router-link :to="authStore.user?.subKategori?.id ? `/sub-kategori/${authStore.user.subKategori.id}` : '/'">
               <img src="/images/Asset2.png" alt="BPJS Kesehatan" class="h-10" />
             </router-link>
             <div class="hidden sm:block h-8 w-px bg-gray-200"></div>
             <div class="hidden sm:block">
               <nav class="flex items-center text-sm text-gray-500">
-                <router-link to="/" class="hover:text-green-600">Beranda</router-link>
+                <router-link :to="authStore.user?.subKategori?.id ? `/sub-kategori/${authStore.user.subKategori.id}` : '/'" class="hover:text-green-600">Beranda</router-link>
                 <svg class="w-4 h-4 mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
@@ -87,21 +89,34 @@ async function handleLogout() {
             </div>
           </div>
 
-          <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-1 sm:space-x-3">
+            <router-link
+              to="/profile"
+              class="px-3 py-2 text-sm text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all flex items-center"
+            >
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span class="hidden sm:inline">Profil</span>
+            </router-link>
+            <div class="h-6 w-px bg-gray-200"></div>
             <div class="flex items-center">
               <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-2">
                 <span class="text-green-600 font-semibold text-sm">{{ authStore.user?.nama?.charAt(0) }}</span>
               </div>
-              <div class="hidden md:block text-sm">
+              <div class="hidden md:block text-sm mr-2">
                 <p class="font-medium text-gray-900">{{ authStore.user?.nama }}</p>
                 <p class="text-gray-500 text-xs">{{ authStore.user?.posisi }}</p>
               </div>
             </div>
             <button
               @click="handleLogout"
-              class="text-sm text-gray-500 hover:text-red-600 transition-colors"
+              class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+              title="Keluar"
             >
-              Logout
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
             </button>
           </div>
         </div>
@@ -144,6 +159,25 @@ async function handleLogout() {
         <div class="text-center">
           <div class="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p class="text-gray-500">Memuat riwayat...</p>
+        </div>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="errorMessage" class="text-center py-20">
+        <div class="bg-white rounded-2xl shadow-lg border border-red-200 p-10 max-w-md mx-auto">
+          <div class="w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg class="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">Terjadi Kesalahan</h3>
+          <p class="text-gray-500 mb-6">{{ errorMessage }}</p>
+          <button
+            @click="location.reload()"
+            class="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors"
+          >
+            Coba Lagi
+          </button>
         </div>
       </div>
 
