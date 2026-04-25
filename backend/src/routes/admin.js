@@ -34,13 +34,16 @@ export default async function adminRoutes(fastify, options) {
   const { prisma } = fastify
 
   // Get dashboard stats with comprehensive analytics
+  // Sourced from PeriodeTest-based tables (TestSessionPeriode, HasilTestPeriode,
+  // MateriProgressPeriode, SoalPeriode, MateriPeriode). The legacy Modul/TestSession/
+  // HasilTest/MateriProgress tables are no longer the source of truth.
   fastify.get('/dashboard', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
     const [
       totalUsers,
       totalKategori,
-      totalModul,
+      totalPeriode,
       totalSoal,
       totalTestCompleted,
       totalMateriCompleted,
@@ -48,15 +51,15 @@ export default async function adminRoutes(fastify, options) {
     ] = await Promise.all([
       prisma.user.count(),
       prisma.kategori.count(),
-      prisma.modul.count(),
-      prisma.soal.count(),
-      prisma.testSession.count({ where: { isCompleted: true } }),
-      prisma.materiProgress.count({ where: { isCompleted: true } }),
-      prisma.testSession.findMany({
+      prisma.periodeTest.count(),
+      prisma.soalPeriode.count(),
+      prisma.testSessionPeriode.count({ where: { isCompleted: true } }),
+      prisma.materiProgressPeriode.count({ where: { isCompleted: true } }),
+      prisma.testSessionPeriode.findMany({
         where: { isCompleted: true },
         include: {
           user: true,
-          modul: true,
+          periodeTest: true,
           hasilTest: true
         },
         orderBy: { endTime: 'desc' },
@@ -65,67 +68,51 @@ export default async function adminRoutes(fastify, options) {
     ])
 
     // Get average score
-    const avgScore = await prisma.hasilTest.aggregate({
+    const avgScore = await prisma.hasilTestPeriode.aggregate({
       _avg: { skor: true }
     })
 
-    // Get users per sub-kategori with progress
+    // Per-subKategori progress: count UNIQUE users who completed at least
+    // one MateriPeriode / TestSessionPeriode across any periode in that subKategori.
     const subKategoris = await prisma.subKategori.findMany({
       include: {
         kategori: true,
-        users: true,
-        moduls: {
-          where: { tipe: 'KUPAS_TUNTAS' }
-        }
+        users: true
       }
     })
 
-    // Build user progress data per sub-kategori
     const userProgressBySubKategori = await Promise.all(
       subKategoris.map(async (sk) => {
-        const kupasModul = sk.moduls[0]
-        let completedMateri = 0
-        let completedTest = 0
-
-        if (kupasModul) {
-          completedMateri = await prisma.materiProgress.count({
+        const [completedMateriUsers, completedTestUsers] = await Promise.all([
+          prisma.materiProgressPeriode.groupBy({
+            by: ['userId'],
             where: {
-              modulId: kupasModul.id,
-              isCompleted: true
+              isCompleted: true,
+              periodeTest: { subKategoriId: sk.id }
+            }
+          }),
+          prisma.testSessionPeriode.groupBy({
+            by: ['userId'],
+            where: {
+              isCompleted: true,
+              periodeTest: { subKategoriId: sk.id }
             }
           })
-        }
-
-        // Get JITU modul for this sub-kategori
-        const jituModul = await prisma.modul.findFirst({
-          where: {
-            subKategoriId: sk.id,
-            tipe: 'JITU'
-          }
-        })
-
-        if (jituModul) {
-          completedTest = await prisma.testSession.count({
-            where: {
-              modulId: jituModul.id,
-              isCompleted: true
-            }
-          })
-        }
+        ])
 
         return {
           id: sk.id,
           nama: sk.nama,
           kategori: sk.kategori.nama,
           totalUsers: sk.users.length,
-          completedMateri,
-          completedTest
+          completedMateri: completedMateriUsers.length,
+          completedTest: completedTestUsers.length
         }
       })
     )
 
     // Score distribution (0-40, 41-60, 61-80, 81-100)
-    const allScores = await prisma.hasilTest.findMany({
+    const allScores = await prisma.hasilTestPeriode.findMany({
       select: { skor: true }
     })
 
@@ -141,7 +128,7 @@ export default async function adminRoutes(fastify, options) {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
     sevenDaysAgo.setHours(0, 0, 0, 0)
 
-    const testsByDay = await prisma.testSession.findMany({
+    const testsByDay = await prisma.testSessionPeriode.findMany({
       where: {
         isCompleted: true,
         endTime: { gte: sevenDaysAgo }
@@ -190,54 +177,28 @@ export default async function adminRoutes(fastify, options) {
       orderBy: { nama: 'asc' }
     })
 
-    // Get progress for each user
+    // Per-user progress: completed at least one materi / test in any periode
+    // belonging to the user's subKategori. Latest score taken from most recent test.
     const usersWithProgress = await Promise.all(
       allUsers.map(async (user) => {
-        // Get KUPAS_TUNTAS modul for user's sub-kategori
-        const kupasModul = await prisma.modul.findFirst({
-          where: {
-            subKategoriId: user.subKategoriId,
-            tipe: 'KUPAS_TUNTAS'
-          }
-        })
-
-        // Get JITU modul
-        const jituModul = await prisma.modul.findFirst({
-          where: {
-            subKategoriId: user.subKategoriId,
-            tipe: 'JITU'
-          }
-        })
-
-        let materiCompleted = false
-        let testCompleted = false
-        let testScore = null
-
-        if (kupasModul) {
-          const progress = await prisma.materiProgress.findUnique({
-            where: {
-              userId_modulId: {
-                userId: user.id,
-                modulId: kupasModul.id
-              }
-            }
-          })
-          materiCompleted = progress?.isCompleted || false
-        }
-
-        if (jituModul) {
-          const testSession = await prisma.testSession.findFirst({
+        const [completedMateriCount, latestTestSession] = await Promise.all([
+          prisma.materiProgressPeriode.count({
             where: {
               userId: user.id,
-              modulId: jituModul.id,
-              isCompleted: true
+              isCompleted: true,
+              periodeTest: { subKategoriId: user.subKategoriId }
+            }
+          }),
+          prisma.testSessionPeriode.findFirst({
+            where: {
+              userId: user.id,
+              isCompleted: true,
+              periodeTest: { subKategoriId: user.subKategoriId }
             },
             include: { hasilTest: true },
             orderBy: { endTime: 'desc' }
           })
-          testCompleted = !!testSession
-          testScore = testSession?.hasilTest?.skor || null
-        }
+        ])
 
         return {
           id: user.id,
@@ -248,9 +209,9 @@ export default async function adminRoutes(fastify, options) {
           kepwil: user.kepwil?.nama || null,
           subKategori: user.subKategori.nama,
           kategori: user.subKategori.kategori.nama,
-          materiCompleted,
-          testCompleted,
-          testScore
+          materiCompleted: completedMateriCount > 0,
+          testCompleted: !!latestTestSession,
+          testScore: latestTestSession?.hasilTest?.skor || null
         }
       })
     )
@@ -279,40 +240,29 @@ export default async function adminRoutes(fastify, options) {
       }))
       .sort((a, b) => a.nama.localeCompare(b.nama))
 
-    // Progress per regional
+    // Progress per regional: count UNIQUE users in this kepwil who have any
+    // completed materi / test session across the Periode tables.
     const regionalProgress = await Promise.all(
       usersByRegional.map(async (reg) => {
-        const usersInRegional = await prisma.user.findMany({
-          where: { kepwilId: reg.kepwilId },
-          select: { id: true, subKategoriId: true }
-        })
-
-        let completedMateri = 0
-        let completedTest = 0
-
-        for (const user of usersInRegional) {
-          // Check KUPAS_TUNTAS progress
-          const kupasModul = await prisma.modul.findFirst({
-            where: { subKategoriId: user.subKategoriId, tipe: 'KUPAS_TUNTAS' }
+        const [completedMateriUsers, completedTestUsers] = await Promise.all([
+          prisma.materiProgressPeriode.groupBy({
+            by: ['userId'],
+            where: {
+              isCompleted: true,
+              user: { kepwilId: reg.kepwilId }
+            }
+          }),
+          prisma.testSessionPeriode.groupBy({
+            by: ['userId'],
+            where: {
+              isCompleted: true,
+              user: { kepwilId: reg.kepwilId }
+            }
           })
-          if (kupasModul) {
-            const progress = await prisma.materiProgress.findUnique({
-              where: { userId_modulId: { userId: user.id, modulId: kupasModul.id } }
-            })
-            if (progress?.isCompleted) completedMateri++
-          }
+        ])
 
-          // Check JITU test
-          const jituModul = await prisma.modul.findFirst({
-            where: { subKategoriId: user.subKategoriId, tipe: 'JITU' }
-          })
-          if (jituModul) {
-            const testSession = await prisma.testSession.findFirst({
-              where: { userId: user.id, modulId: jituModul.id, isCompleted: true }
-            })
-            if (testSession) completedTest++
-          }
-        }
+        const completedMateri = completedMateriUsers.length
+        const completedTest = completedTestUsers.length
 
         return {
           nama: reg.nama,
@@ -328,16 +278,10 @@ export default async function adminRoutes(fastify, options) {
     // Average score per regional
     const regionalScores = await Promise.all(
       usersByRegional.map(async (reg) => {
-        const usersInRegional = await prisma.user.findMany({
-          where: { kepwilId: reg.kepwilId },
-          select: { id: true }
-        })
-        const userIds = usersInRegional.map(u => u.id)
-
-        const scores = await prisma.hasilTest.findMany({
+        const scores = await prisma.hasilTestPeriode.findMany({
           where: {
-            testSession: {
-              userId: { in: userIds }
+            testSessionPeriode: {
+              user: { kepwilId: reg.kepwilId }
             }
           },
           select: { skor: true }
@@ -360,7 +304,7 @@ export default async function adminRoutes(fastify, options) {
       stats: {
         totalUsers,
         totalKategori,
-        totalModul,
+        totalModul: totalPeriode,
         totalSoal,
         totalTestCompleted,
         totalMateriCompleted,
