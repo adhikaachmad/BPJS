@@ -586,6 +586,12 @@ export default async function adminRoutes(fastify, options) {
       if (endDate) where.endTime.lte = new Date(endDate)
     }
 
+    // ADMIN_KEPWIL only sees results from users in their own Kepwil.
+    const adminKepwilId = getKepwilFilter(request)
+    if (adminKepwilId) {
+      where.user = { ...(where.user || {}), kepwilId: adminKepwilId }
+    }
+
     const [total, results] = await Promise.all([
       prisma.testSession.count({ where }),
       prisma.testSession.findMany({
@@ -751,6 +757,18 @@ export default async function adminRoutes(fastify, options) {
 
     if (!userId || !modulId) {
       return reply.status(400).send({ error: 'UserId and modulId are required' })
+    }
+
+    // ADMIN_KEPWIL may only reset tests for users inside their own Kepwil.
+    const adminKepwilId = getKepwilFilter(request)
+    if (adminKepwilId) {
+      const targetUser = await prisma.user.findUnique({
+        where: { id: parseInt(userId) },
+        select: { kepwilId: true }
+      })
+      if (!targetUser || targetUser.kepwilId !== adminKepwilId) {
+        return reply.status(403).send({ error: 'User berada di luar Kepwil Anda.' })
+      }
     }
 
     // Deactivate all sessions for this user and modul

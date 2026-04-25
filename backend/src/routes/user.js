@@ -148,6 +148,25 @@ export default async function userRoutes(fastify, options) {
       users.push(user)
     }
 
+    // ADMIN_KEPWIL guard: force every imported row into the admin's own kepwil.
+    // Without this, an ADMIN_KEPWIL could craft a CSV that creates users in
+    // other Kepwils — a cross-tenant write IDOR.
+    const adminKepwilId = getKepwilFilter(request)
+    if (adminKepwilId) {
+      for (const u of users) {
+        if (u.kepwilId && u.kepwilId !== adminKepwilId) {
+          return reply.status(403).send({
+            error: `Anda tidak boleh meng-import user ke Kepwil lain. Baris dengan NPP ${u.npp || '?'} memiliki kepwilId yang tidak sesuai dengan Kepwil Anda.`
+          })
+        }
+        u.kepwilId = adminKepwilId
+        // KC/Kakab dropped: ADMIN_KEPWIL must re-pick those after import
+        // since we cannot validate cross-Kepwil KC/Kakab integrity here.
+        u.kcId = null
+        u.kakabId = null
+      }
+    }
+
     if (users.length === 0) {
       return reply.status(400).send({ error: 'No valid data rows found in CSV' })
     }
@@ -509,6 +528,18 @@ export default async function userRoutes(fastify, options) {
       return reply.status(400).send({ error: `Default password tidak valid: ${defPwError}` })
     }
 
+    // ADMIN_KEPWIL guard: see /bulk-import-csv for rationale.
+    const adminKepwilId = getKepwilFilter(request)
+    if (adminKepwilId) {
+      for (const u of users) {
+        if (u.kepwilId && parseInt(u.kepwilId) !== adminKepwilId) {
+          return reply.status(403).send({
+            error: `Anda tidak boleh meng-import user ke Kepwil lain. NPP ${u.npp || '?'} memiliki kepwilId yang tidak sesuai dengan Kepwil Anda.`
+          })
+        }
+      }
+    }
+
     const results = { success: [], failed: [] }
     const hashedDefaultPassword = await bcrypt.hash(defaultPassword, 10)
 
@@ -534,9 +565,9 @@ export default async function userRoutes(fastify, options) {
             email: userData.email || null,
             posisi: userData.posisi,
             vendor: userData.vendor || null,
-            kepwilId: userData.kepwilId ? parseInt(userData.kepwilId) : null,
-            kcId: userData.kcId ? parseInt(userData.kcId) : null,
-            kakabId: userData.kakabId ? parseInt(userData.kakabId) : null,
+            kepwilId: adminKepwilId ?? (userData.kepwilId ? parseInt(userData.kepwilId) : null),
+            kcId: adminKepwilId ? null : (userData.kcId ? parseInt(userData.kcId) : null),
+            kakabId: adminKepwilId ? null : (userData.kakabId ? parseInt(userData.kakabId) : null),
             password,
             subKategoriId: parseInt(userData.subKategoriId)
           }

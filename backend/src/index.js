@@ -34,8 +34,36 @@ import { setupWebSocket } from './websocket/handlers.js'
 
 const prisma = new PrismaClient()
 
+// Logger config:
+// - In production: redact PII / secrets from request/response logs so audit
+//   logs and access logs don't leak credentials, tokens, or NPP-level PII.
+//   Pentest finding #21.
+// - In dev: keep full logs for debugging.
+const isProd = process.env.NODE_ENV === 'production'
 const fastify = Fastify({
-  logger: true,
+  logger: isProd
+    ? {
+        level: process.env.LOG_LEVEL || 'info',
+        redact: {
+          paths: [
+            'req.headers.authorization',
+            'req.headers.cookie',
+            'req.headers["x-api-key"]',
+            'req.headers["x-auth-token"]',
+            'req.body.password',
+            'req.body.currentPassword',
+            'req.body.newPassword',
+            'req.body.defaultPassword',
+            'req.body.token',
+            'req.body.csvData',
+            'req.body.users[*].password',
+            'req.query.token',
+            'res.headers["set-cookie"]'
+          ],
+          censor: '[REDACTED]'
+        }
+      }
+    : true,
   trustProxy: true
 })
 

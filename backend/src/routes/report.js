@@ -364,6 +364,11 @@ export default async function reportRoutes(fastify, options) {
       where.modul = { subKategori: { kategoriId: parseInt(kategoriId) } }
     }
 
+    // ADMIN_KEPWIL only sees summary scoped to their Kepwil.
+    if (request.user.adminRole === 'ADMIN_KEPWIL' && request.user.kepwilId) {
+      where.user = { ...(where.user || {}), kepwilId: request.user.kepwilId }
+    }
+
     const [totalTests, hasilStats] = await Promise.all([
       prisma.testSession.count({ where }),
       prisma.hasilTest.aggregate({
@@ -374,21 +379,20 @@ export default async function reportRoutes(fastify, options) {
       })
     ])
 
-    // Score distribution
-    const scoreRanges = await prisma.$queryRaw`
-      SELECT
-        CASE
-          WHEN skor >= 90 THEN 'A (90-100)'
-          WHEN skor >= 80 THEN 'B (80-89)'
-          WHEN skor >= 70 THEN 'C (70-79)'
-          WHEN skor >= 60 THEN 'D (60-69)'
-          ELSE 'E (< 60)'
-        END as grade,
-        COUNT(*) as count
-      FROM HasilTest
-      GROUP BY grade
-      ORDER BY grade
-    `
+    // Score distribution (computed in JS so the same `where` filter — including
+    // the ADMIN_KEPWIL kepwilId scope above — applies. The previous raw SQL
+    // bypassed `where` and leaked all-Kepwil grades.)
+    const allHasilForDist = await prisma.hasilTest.findMany({
+      where: { testSession: where },
+      select: { skor: true }
+    })
+    const grade = s => s >= 90 ? 'A (90-100)' : s >= 80 ? 'B (80-89)' : s >= 70 ? 'C (70-79)' : s >= 60 ? 'D (60-69)' : 'E (< 60)'
+    const counts = {}
+    for (const r of allHasilForDist) {
+      const g = grade(r.skor)
+      counts[g] = (counts[g] || 0) + 1
+    }
+    const scoreRanges = Object.entries(counts).map(([g, c]) => ({ grade: g, count: c })).sort((a, b) => a.grade.localeCompare(b.grade))
 
     return {
       totalTests,
