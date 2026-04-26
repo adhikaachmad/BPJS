@@ -267,7 +267,7 @@ function toggleSidebar() {
       <!-- Footer -->
       <footer class="bg-white border-t border-gray-200 py-4 px-6">
         <div class="flex items-center justify-between text-sm text-gray-500">
-          <span>Sistem Kuesioner BPJS Kesehatan</span>
+          <span>Sistem Pembelajaran BPJS Kesehatan</span>
           <span>v1.0.0</span>
         </div>
       </footer>

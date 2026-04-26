@@ -1,7 +1,7 @@
 {
   "name": "bpjs-kuesioner",
   "version": "1.0.0",
-  "description": "Sistem Kuesioner BPJS Kesehatan",
+  "description": "Sistem Pembelajaran BPJS Kesehatan",
   "private": true,
   "workspaces": [
     "backend",

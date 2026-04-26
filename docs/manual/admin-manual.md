@@ -1,6 +1,6 @@
 ---
 title: "Buku Panduan Administrator (Admin Manual)"
-subtitle: "Sistem Kuesioner BPJS Kesehatan — PENTAS"
+subtitle: "Sistem Pembelajaran BPJS Kesehatan — PENTAS"
 author: "BPJS Kesehatan"
 date: "2026"
 lang: id
@@ -20,7 +20,7 @@ lang: id
 
 # BUKU PANDUAN ADMINISTRATOR
 
-## Sistem Kuesioner BPJS Kesehatan
+## Sistem Pembelajaran BPJS Kesehatan
 
 ### PENTAS
 
@@ -49,7 +49,7 @@ lang: id
 \
 
 *Dokumen ini merupakan dokumentasi resmi*
-*Sistem Kuesioner BPJS Kesehatan*
+*Sistem Pembelajaran BPJS Kesehatan*
 
 *RAHASIA — Hanya untuk penggunaan internal*
 
@@ -82,7 +82,7 @@ lang: id
 
 ## 1.1 Tujuan Dokumen
 
-Dokumen ini merupakan panduan lengkap bagi Administrator dalam mengelola aplikasi **Sistem Kuesioner BPJS Kesehatan (PENTAS)**. Panduan ini mencakup seluruh fitur administratif — mulai dari login, pengelolaan user, kategori, soal, jadwal, hingga laporan.
+Dokumen ini merupakan panduan lengkap bagi Administrator dalam mengelola aplikasi **Sistem Pembelajaran BPJS Kesehatan (PENTAS)**. Panduan ini mencakup seluruh fitur administratif — mulai dari login, pengelolaan user, kategori, soal, jadwal, hingga laporan.
 
 ## 1.2 Audiens
 
@@ -160,7 +160,7 @@ Halaman login admin memiliki tampilan berbeda dari login user:
 
 - **Background gelap** dengan ikon gerigi (pengaturan).
 - **Judul:** *"Admin Panel"*
-- **Subjudul:** *"Sistem Kuesioner BPJS Kesehatan"*
+- **Subjudul:** *"Sistem Pembelajaran BPJS Kesehatan"*
 - **Form Login:**
   - Username
   - Password
@@ -865,4 +865,4 @@ Untuk kendala teknis lain yang tidak tercantum dalam panduan ini, silakan hubung
 
 ---
 
-*Dokumen ini merupakan bagian dari dokumentasi resmi Sistem Kuesioner BPJS Kesehatan.*
+*Dokumen ini merupakan bagian dari dokumentasi resmi Sistem Pembelajaran BPJS Kesehatan.*

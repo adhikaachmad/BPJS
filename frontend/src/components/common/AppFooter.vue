@@ -21,7 +21,7 @@ const currentYear = new Date().getFullYear()
             </div>
             <div>
               <h3 class="font-bold">BPJS Kesehatan</h3>
-              <p class="text-sm text-gray-400">Sistem Kuesioner</p>
+              <p class="text-sm text-gray-400">Sistem Pembelajaran</p>
             </div>
           </div>
           <p class="text-gray-400 text-sm">

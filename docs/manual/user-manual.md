@@ -1,6 +1,6 @@
 ---
 title: "Buku Panduan Pengguna (User Manual)"
-subtitle: "Sistem Kuesioner BPJS Kesehatan — PENTAS"
+subtitle: "Sistem Pembelajaran BPJS Kesehatan — PENTAS"
 author: "BPJS Kesehatan"
 date: "2026"
 lang: id
@@ -20,7 +20,7 @@ lang: id
 
 # BUKU PANDUAN PENGGUNA
 
-## Sistem Kuesioner BPJS Kesehatan
+## Sistem Pembelajaran BPJS Kesehatan
 
 ### PENTAS
 
@@ -49,7 +49,7 @@ lang: id
 \
 
 *Dokumen ini merupakan dokumentasi resmi*
-*Sistem Kuesioner BPJS Kesehatan*
+*Sistem Pembelajaran BPJS Kesehatan*
 
 \newpage
 
@@ -80,7 +80,7 @@ lang: id
 
 ## 1.1 Tujuan Dokumen
 
-Dokumen ini merupakan buku panduan penggunaan aplikasi **Sistem Kuesioner BPJS Kesehatan (PENTAS)** yang ditujukan bagi pengguna akhir, yaitu pegawai outsourcing BPJS Kesehatan pada berbagai posisi (Satpam, Office Boy, Driver, dan sebagainya). Panduan ini menjelaskan langkah demi langkah cara menggunakan aplikasi mulai dari login hingga menyelesaikan proses evaluasi.
+Dokumen ini merupakan buku panduan penggunaan aplikasi **Sistem Pembelajaran BPJS Kesehatan (PENTAS)** yang ditujukan bagi pengguna akhir, yaitu pegawai outsourcing BPJS Kesehatan pada berbagai posisi (Satpam, Office Boy, Driver, dan sebagainya). Panduan ini menjelaskan langkah demi langkah cara menggunakan aplikasi mulai dari login hingga menyelesaikan proses evaluasi.
 
 ## 1.2 Audiens
 
@@ -592,4 +592,4 @@ Apabila terdapat kendala yang tidak tercantum dalam panduan ini, silakan hubungi
 
 ---
 
-*Dokumen ini merupakan bagian dari dokumentasi resmi Sistem Kuesioner BPJS Kesehatan.*
+*Dokumen ini merupakan bagian dari dokumentasi resmi Sistem Pembelajaran BPJS Kesehatan.*

@@ -651,7 +651,7 @@ function onMapClick(params) {
         <h1 class="text-2xl lg:text-3xl font-bold text-gray-900">
           {{ greeting }}, {{ authStore.user?.nama?.split(' ')[0] || 'Admin' }}
         </h1>
-        <p class="text-gray-500 mt-1">Dashboard Analytics Sistem Kuesioner BPJS Kesehatan</p>
+        <p class="text-gray-500 mt-1">Dashboard Analytics Sistem Pembelajaran BPJS Kesehatan</p>
       </div>
 
       <!-- Loading -->

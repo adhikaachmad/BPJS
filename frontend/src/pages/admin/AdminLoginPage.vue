@@ -44,7 +44,7 @@ async function handleLogin() {
           </svg>
         </div>
         <h1 class="text-3xl font-bold text-white mb-2">Admin Panel</h1>
-        <p class="text-gray-400">Sistem Kuesioner BPJS Kesehatan</p>
+        <p class="text-gray-400">Sistem Pembelajaran BPJS Kesehatan</p>
       </div>
 
       <!-- Login Card -->

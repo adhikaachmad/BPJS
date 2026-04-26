@@ -36,7 +36,7 @@ async function handleLogout() {
           </div>
           <div class="hidden sm:block">
             <h1 class="text-lg font-bold text-bpjs-600">BPJS Kesehatan</h1>
-            <p class="text-xs text-gray-500">Sistem Kuesioner</p>
+            <p class="text-xs text-gray-500">Sistem Pembelajaran</p>
           </div>
         </router-link>
 
