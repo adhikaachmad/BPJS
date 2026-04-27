@@ -32,6 +32,9 @@ import stepConfigRoutes from './routes/step-config.js'
 // Import WebSocket handlers
 import { setupWebSocket } from './websocket/handlers.js'
 
+// Import error handler
+import { setupErrorHandler } from './utils/error-handler.js'
+
 const prisma = new PrismaClient()
 
 // Logger config:
@@ -213,6 +216,10 @@ fastify.decorate('checkAdminRole', function (allowedRoles) {
     }
   }
 })
+
+// Global error handler — masks Prisma/internal errors before reaching client.
+// Pentest finding #6 (Improper Error Handling, CWE-209).
+setupErrorHandler(fastify)
 
 // Register routes
 fastify.register(authRoutes, { prefix: '/api/auth' })
