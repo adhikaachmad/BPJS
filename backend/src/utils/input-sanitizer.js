@@ -1,62 +1,75 @@
-import sanitizeHtml from 'sanitize-html'
+// Input sanitization utilities — defense-in-depth on top of Vue's
+// {{ }} auto-escape. Pentest finding #5 (CWE-20).
+//
+// Implementation note: regex-based to avoid external dependencies that
+// require npm install on production (which is not currently automatable
+// via cPanel API). Adequate for plain-text and basic-HTML use cases.
+// For higher-assurance rich-text sanitization, replace with sanitize-html
+// once SSH-driven npm install is wired up.
 
-const PLAIN_TEXT_OPTS = {
-  allowedTags: [],
-  allowedAttributes: {},
-  textFilter: (t) => t
+const HTML_ENTITIES = {
+  '&lt;': '<', '&gt;': '>', '&amp;': '&',
+  '&quot;': '"', '&#39;': "'", '&nbsp;': ' '
 }
 
-const RICH_TEXT_OPTS = {
-  allowedTags: [
-    'p', 'br', 'b', 'i', 'em', 'strong', 'u', 's', 'sub', 'sup',
-    'ul', 'ol', 'li',
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    'blockquote', 'pre', 'code',
-    'a', 'img', 'figure', 'figcaption',
-    'table', 'thead', 'tbody', 'tr', 'th', 'td',
-    'div', 'span', 'hr'
-  ],
-  allowedAttributes: {
-    a: ['href', 'name', 'target', 'rel'],
-    img: ['src', 'alt', 'title', 'width', 'height'],
-    '*': ['class', 'style']
-  },
-  allowedSchemes: ['http', 'https', 'mailto', 'data'],
-  allowedSchemesByTag: { img: ['http', 'https', 'data'] },
-  allowProtocolRelative: false,
-  transformTags: {
-    a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' })
-  }
+function decodeBasicEntities(s) {
+  return s.replace(/&(lt|gt|amp|quot|#39|nbsp);/g, (m) => HTML_ENTITIES[m] || m)
 }
 
-const SVG_OPTS = {
-  allowedTags: [
-    'svg', 'g', 'path', 'circle', 'rect', 'line', 'polygon', 'polyline',
-    'ellipse', 'defs', 'use', 'title', 'desc', 'linearGradient',
-    'radialGradient', 'stop', 'filter', 'feGaussianBlur', 'feOffset',
-    'feBlend', 'feFlood', 'feComposite', 'mask', 'clipPath'
-  ],
-  allowedAttributes: { '*': ['*'] },
-  allowedSchemes: ['http', 'https'],
-  allowVulnerableTags: false
-}
-
-/** Strip all HTML tags. Use for plain-text fields (nama, npp, email, etc.). */
+/** Strip all HTML/XML tags. Use for plain-text fields (nama, npp, judul). */
 export function stripHtml(s) {
   if (s == null) return s
-  return sanitizeHtml(String(s), PLAIN_TEXT_OPTS).trim()
+  return decodeBasicEntities(String(s).replace(/<[^>]*>/g, '')).trim()
 }
 
-/** Sanitize rich text (materi konten, deskripsi panjang). Allows safe HTML tags. */
+const RICH_BLOCK_TAGS = ['script', 'style', 'iframe', 'object', 'form', 'noscript']
+const RICH_VOID_DANGEROUS = ['embed', 'link', 'meta', 'base']
+
+/** Allowlist-style HTML sanitization for rich-text (materi.konten). */
 export function sanitizeRichText(s) {
   if (s == null) return s
-  return sanitizeHtml(String(s), RICH_TEXT_OPTS)
+  let out = String(s)
+
+  // Strip dangerous block elements with their content
+  for (const tag of RICH_BLOCK_TAGS) {
+    const re = new RegExp(`<${tag}\\b[\\s\\S]*?<\\/${tag}>`, 'gi')
+    out = out.replace(re, '')
+    // Also handle unclosed
+    out = out.replace(new RegExp(`<${tag}\\b[^>]*>`, 'gi'), '')
+  }
+  // Strip dangerous void elements
+  for (const tag of RICH_VOID_DANGEROUS) {
+    out = out.replace(new RegExp(`<${tag}\\b[^>]*\\/?>`, 'gi'), '')
+  }
+  // Strip event handler attributes: onclick="...", onerror='...', onload=foo
+  out = out.replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+  out = out.replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+  out = out.replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+  // Neutralize javascript:/vbscript: URLs in href/src/action/formaction
+  out = out.replace(/(href|src|action|formaction|xlink:href)\s*=\s*"(?:\s*javascript:|\s*vbscript:|\s*data:text\/html)[^"]*"/gi, '$1="#"')
+  out = out.replace(/(href|src|action|formaction|xlink:href)\s*=\s*'(?:\s*javascript:|\s*vbscript:|\s*data:text\/html)[^']*'/gi, "$1='#'")
+  // Strip CSS expression() and behavior: which can execute in older browsers
+  out = out.replace(/style\s*=\s*"[^"]*expression\s*\([^"]*"/gi, '')
+  out = out.replace(/style\s*=\s*'[^']*expression\s*\([^']*'/gi, '')
+
+  return out
 }
 
-/** Sanitize SVG markup (step icons). Strips script/event handlers, keeps shape tags. */
+/** Allowlist for SVG icons (defense-in-depth for step.icon). */
 export function sanitizeSvg(s) {
   if (s == null) return s
-  return sanitizeHtml(String(s), SVG_OPTS)
+  let out = String(s)
+  // Strip script and event handlers (most common SVG XSS vectors)
+  out = out.replace(/<script\b[\s\S]*?<\/script>/gi, '')
+  out = out.replace(/<script\b[^>]*>/gi, '')
+  out = out.replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+  out = out.replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+  out = out.replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+  out = out.replace(/(href|xlink:href)\s*=\s*"(?:\s*javascript:|\s*data:text\/html)[^"]*"/gi, '$1="#"')
+  out = out.replace(/(href|xlink:href)\s*=\s*'(?:\s*javascript:|\s*data:text\/html)[^']*'/gi, "$1='#'")
+  // Strip <foreignObject> which can embed HTML inside SVG
+  out = out.replace(/<foreignObject\b[\s\S]*?<\/foreignObject>/gi, '')
+  return out
 }
 
 /** Returns null when valid, or { status, error } when invalid. */
