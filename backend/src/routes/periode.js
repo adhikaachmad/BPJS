@@ -7,7 +7,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Get all periode tests for a sub-kategori
   fastify.get('/sub-kategori/:subKategoriId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { subKategoriId } = request.params
 
@@ -31,7 +31,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Get single periode with soals and materis
   fastify.get('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
 
@@ -56,7 +56,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Create new periode test
   fastify.post('/', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { subKategoriId, bulan, tahun, tanggal, jamMulai, jamBerakhir, doCheckBerakhir } = request.body
 
@@ -115,7 +115,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Update periode test
   fastify.put('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
     const { tanggal, jamMulai, jamBerakhir, doCheckBerakhir, status } = request.body
@@ -145,7 +145,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Delete periode test (only if draft)
   fastify.delete('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
 
@@ -171,7 +171,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Publish periode (change status to terjadwal)
   fastify.post('/:id/publish', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
 
@@ -206,7 +206,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Add single soal to periode
   fastify.post('/:periodeId/soal', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { periodeId } = request.params
     const { pertanyaan, opsiA, opsiB, opsiC, opsiD, jawabanBenar, pembahasan } = request.body
@@ -244,7 +244,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Update soal
   fastify.put('/soal/:soalId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { soalId } = request.params
     const { pertanyaan, opsiA, opsiB, opsiC, opsiD, jawabanBenar, pembahasan } = request.body
@@ -267,7 +267,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Delete soal
   fastify.delete('/soal/:soalId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { soalId } = request.params
 
@@ -280,7 +280,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Bulk delete soal
   fastify.post('/:periodeId/soal/bulk-delete', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { periodeId } = request.params
     const { soalIds } = request.body
@@ -305,7 +305,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Download CSV template
   fastify.get('/template/csv', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const csvContent = `pertanyaan,opsi_a,opsi_b,opsi_c,opsi_d,jawaban_benar,pembahasan
 "Apa fungsi utama CCTV?","Dekorasi","Pengawasan keamanan","Penerangan","Komunikasi","B","CCTV berfungsi untuk pengawasan dan monitoring keamanan"
@@ -318,7 +318,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Upload CSV soal
   fastify.post('/:periodeId/upload-csv', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { periodeId } = request.params
 
@@ -414,7 +414,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Copy soals from another periode
   fastify.post('/:periodeId/copy-from/:sourceId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { periodeId, sourceId } = request.params
 
@@ -456,7 +456,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Get available periode sources for copying (same sub-kategori, different periode)
   fastify.get('/:periodeId/copy-sources', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { periodeId } = request.params
 
@@ -492,7 +492,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Get all materi for a periode
   fastify.get('/:periodeId/materi', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { periodeId } = request.params
 
@@ -506,7 +506,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Get single materi
   fastify.get('/materi/:materiId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { materiId } = request.params
 
@@ -523,7 +523,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Add materi to periode
   fastify.post('/:periodeId/materi', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { periodeId } = request.params
     const { judul, konten, videoType, videoUrl, videoFile, pdfFile } = request.body
@@ -561,7 +561,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Update materi
   fastify.put('/materi/:materiId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { materiId } = request.params
     const { judul, konten, videoType, videoUrl, videoFile, pdfFile, urutan } = request.body
@@ -599,7 +599,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Delete materi
   fastify.delete('/materi/:materiId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { materiId } = request.params
 
@@ -629,7 +629,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Reorder materi
   fastify.put('/:periodeId/materi/reorder', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { periodeId } = request.params
     const { orders } = request.body // Array of { id, urutan }
@@ -651,7 +651,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Copy materi from another periode
   fastify.post('/:periodeId/materi/copy-from/:sourceId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { periodeId, sourceId } = request.params
 
@@ -692,7 +692,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Get available periode sources for copying materi (same sub-kategori, different periode)
   fastify.get('/:periodeId/materi-copy-sources', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { periodeId } = request.params
 
@@ -1621,7 +1621,7 @@ export default async function periodeRoutes(fastify, options) {
 
   // Update all periode statuses based on current time
   fastify.post('/update-statuses', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const now = new Date()
 

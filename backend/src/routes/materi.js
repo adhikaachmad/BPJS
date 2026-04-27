@@ -355,7 +355,7 @@ export default async function materiRoutes(fastify, options) {
 
   // Admin: Create materi
   fastify.post('/', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { judul, konten, videoUrl, pdfUrl, urutan, modulId } = request.body
 
@@ -392,7 +392,7 @@ export default async function materiRoutes(fastify, options) {
 
   // Admin: Update materi
   fastify.put('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
     const { judul, konten, videoUrl, pdfUrl, urutan } = request.body
@@ -412,7 +412,7 @@ export default async function materiRoutes(fastify, options) {
 
   // Admin: Delete materi
   fastify.delete('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
 

@@ -40,7 +40,7 @@ export default async function kategoriRoutes(fastify, options) {
 
   // Create kategori (admin only)
   fastify.post('/', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { nama, deskripsi, icon } = request.body
 
@@ -57,7 +57,7 @@ export default async function kategoriRoutes(fastify, options) {
 
   // Update kategori (admin only)
   fastify.put('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
     const { nama, deskripsi, icon } = request.body
@@ -77,7 +77,7 @@ export default async function kategoriRoutes(fastify, options) {
 
   // Delete kategori — destructive cascade. SUPER_ADMIN only + explicit confirm when children exist.
   fastify.delete('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     if (request.user.adminRole !== 'SUPER_ADMIN') {
       return reply.status(403).send({ error: 'Hanya Super Admin yang dapat menghapus kategori' })
@@ -134,7 +134,7 @@ export default async function kategoriRoutes(fastify, options) {
 
   // Create sub kategori (admin only)
   fastify.post('/:id/sub-kategori', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
     const { nama, deskripsi } = request.body
@@ -159,7 +159,7 @@ export default async function kategoriRoutes(fastify, options) {
 
   // Update sub kategori (admin only)
   fastify.put('/sub-kategori/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
     const { nama, deskripsi } = request.body
@@ -185,7 +185,7 @@ export default async function kategoriRoutes(fastify, options) {
 
   // Delete sub kategori — destructive cascade. SUPER_ADMIN only + explicit confirm when children exist.
   fastify.delete('/sub-kategori/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     if (request.user.adminRole !== 'SUPER_ADMIN') {
       return reply.status(403).send({ error: 'Hanya Super Admin yang dapat menghapus sub kategori' })

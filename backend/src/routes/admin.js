@@ -799,9 +799,9 @@ export default async function adminRoutes(fastify, options) {
     }
   })
 
-  // Reset user test (allow retake)
+  // Reset user test (allow retake) — SUPER_ADMIN & ADMIN_KP only
   fastify.post('/reset-test', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { userId, modulId } = request.body
 

@@ -3,7 +3,7 @@ export default async function soalRoutes(fastify, options) {
 
   // Get all soals (admin only)
   fastify.get('/', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { modulId } = request.query
 
@@ -26,7 +26,7 @@ export default async function soalRoutes(fastify, options) {
 
   // Get soal by id
   fastify.get('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
     const soal = await prisma.soal.findUnique({
@@ -46,7 +46,7 @@ export default async function soalRoutes(fastify, options) {
 
   // Create soal with options (admin only)
   fastify.post('/', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { pertanyaan, bobot, modulId, opsis } = request.body
 
@@ -84,7 +84,7 @@ export default async function soalRoutes(fastify, options) {
 
   // Update soal (admin only)
   fastify.put('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
     const { pertanyaan, bobot, opsis } = request.body
@@ -140,7 +140,7 @@ export default async function soalRoutes(fastify, options) {
 
   // Delete soal (admin only)
   fastify.delete('/:id', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
 
@@ -158,7 +158,7 @@ export default async function soalRoutes(fastify, options) {
 
   // Get soals by modul
   fastify.get('/modul/:modulId', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { modulId } = request.params
 
@@ -173,7 +173,7 @@ export default async function soalRoutes(fastify, options) {
 
   // Bulk create soals (admin only)
   fastify.post('/bulk', {
-    preHandler: [fastify.authenticateAdmin]
+    preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { modulId, soals } = request.body
 

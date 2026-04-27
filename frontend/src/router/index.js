@@ -61,7 +61,8 @@ const routes = [
     component: () => import('@/pages/ProfilePage.vue'),
     meta: { requiresAuth: true, hideHeader: true }
   },
-  // Admin routes
+  // Admin routes — meta.allowedRoles enforces tier (pentest finding #2).
+  // Mapping mirrors CLAUDE.md and AdminLayout sidebar filter.
   {
     path: '/admin',
     name: 'admin',
@@ -77,55 +78,55 @@ const routes = [
     path: '/admin/dashboard',
     name: 'admin-dashboard',
     component: () => import('@/pages/admin/DashboardPage.vue'),
-    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+    meta: { requiresAdmin: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN_KP', 'ADMIN_KEPWIL'], hideHeader: true, hideFooter: true }
   },
   {
     path: '/admin/akses',
     name: 'admin-akses',
     component: () => import('@/pages/admin/AksesManagePage.vue'),
-    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+    meta: { requiresAdmin: true, allowedRoles: ['SUPER_ADMIN'], hideHeader: true, hideFooter: true }
   },
   {
     path: '/admin/admins',
     name: 'admin-admins',
     component: () => import('@/pages/admin/AdminManagePage.vue'),
-    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+    meta: { requiresAdmin: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN_KP'], hideHeader: true, hideFooter: true }
   },
   {
     path: '/admin/kategori',
     name: 'admin-kategori',
     component: () => import('@/pages/admin/KategoriManagePage.vue'),
-    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+    meta: { requiresAdmin: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN_KP'], hideHeader: true, hideFooter: true }
   },
   {
     path: '/admin/step-config',
     name: 'admin-step-config',
     component: () => import('@/pages/admin/StepConfigPage.vue'),
-    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+    meta: { requiresAdmin: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN_KP'], hideHeader: true, hideFooter: true }
   },
   {
     path: '/admin/soal',
     name: 'admin-soal',
     component: () => import('@/pages/admin/SoalManagePage.vue'),
-    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+    meta: { requiresAdmin: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN_KP'], hideHeader: true, hideFooter: true }
   },
   {
     path: '/admin/users',
     name: 'admin-users',
     component: () => import('@/pages/admin/UserManagePage.vue'),
-    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+    meta: { requiresAdmin: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN_KP', 'ADMIN_KEPWIL'], hideHeader: true, hideFooter: true }
   },
   {
     path: '/admin/reports',
     name: 'admin-reports',
     component: () => import('@/pages/admin/ReportsPage.vue'),
-    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+    meta: { requiresAdmin: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN_KP', 'ADMIN_KEPWIL'], hideHeader: true, hideFooter: true }
   },
   {
     path: '/admin/reset-test',
     name: 'admin-reset-test',
     component: () => import('@/pages/admin/ResetTestPage.vue'),
-    meta: { requiresAdmin: true, hideHeader: true, hideFooter: true }
+    meta: { requiresAdmin: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN_KP'], hideHeader: true, hideFooter: true }
   },
   // Access Denied page
   {
@@ -207,6 +208,13 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresAdmin) {
     if (!authStore.isAdmin) {
       return next({ name: 'admin-login' })
+    }
+    // Role-tier check (force-browse defense). Pentest finding #2.
+    if (to.meta.allowedRoles && !to.meta.allowedRoles.includes(authStore.adminRole)) {
+      return next({
+        name: 'access-denied',
+        query: { from: to.fullPath, reason: 'role', role: authStore.adminRole }
+      })
     }
   }
 
