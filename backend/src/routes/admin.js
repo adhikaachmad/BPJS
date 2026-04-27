@@ -42,6 +42,15 @@ export default async function adminRoutes(fastify, options) {
   fastify.get('/dashboard', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
+    // ADMIN_KEPWIL data scope: every user-derived metric must be filtered by
+    // the admin's own kepwilId. Pentest finding #3 (BAC – Data Scope Dashboard).
+    const adminKepwilId = getKepwilFilter(request)
+    const userWhere = adminKepwilId ? { kepwilId: adminKepwilId } : {}
+    const userRelWhere = adminKepwilId ? { user: { kepwilId: adminKepwilId } } : {}
+    const hasilScopeWhere = adminKepwilId
+      ? { testSessionPeriode: { user: { kepwilId: adminKepwilId } } }
+      : {}
+
     const [
       totalUsers,
       totalKategori,
@@ -51,14 +60,14 @@ export default async function adminRoutes(fastify, options) {
       totalMateriCompleted,
       recentTests
     ] = await Promise.all([
-      prisma.user.count(),
+      prisma.user.count({ where: userWhere }),
       prisma.kategori.count(),
       prisma.periodeTest.count(),
       prisma.soalPeriode.count(),
-      prisma.testSessionPeriode.count({ where: { isCompleted: true } }),
-      prisma.materiProgressPeriode.count({ where: { isCompleted: true } }),
+      prisma.testSessionPeriode.count({ where: { isCompleted: true, ...userRelWhere } }),
+      prisma.materiProgressPeriode.count({ where: { isCompleted: true, ...userRelWhere } }),
       prisma.testSessionPeriode.findMany({
-        where: { isCompleted: true },
+        where: { isCompleted: true, ...userRelWhere },
         include: {
           user: true,
           periodeTest: true,
@@ -69,9 +78,10 @@ export default async function adminRoutes(fastify, options) {
       })
     ])
 
-    // Get average score
+    // Get average score (scoped via testSessionPeriode → user → kepwilId)
     const avgScore = await prisma.hasilTestPeriode.aggregate({
-      _avg: { skor: true }
+      _avg: { skor: true },
+      where: hasilScopeWhere
     })
 
     // Per-subKategori progress: count UNIQUE users who completed at least
@@ -79,7 +89,7 @@ export default async function adminRoutes(fastify, options) {
     const subKategoris = await prisma.subKategori.findMany({
       include: {
         kategori: true,
-        users: true
+        users: { where: userWhere }
       }
     })
 
@@ -90,14 +100,16 @@ export default async function adminRoutes(fastify, options) {
             by: ['userId'],
             where: {
               isCompleted: true,
-              periodeTest: { subKategoriId: sk.id }
+              periodeTest: { subKategoriId: sk.id },
+              ...userRelWhere
             }
           }),
           prisma.testSessionPeriode.groupBy({
             by: ['userId'],
             where: {
               isCompleted: true,
-              periodeTest: { subKategoriId: sk.id }
+              periodeTest: { subKategoriId: sk.id },
+              ...userRelWhere
             }
           })
         ])
@@ -113,8 +125,9 @@ export default async function adminRoutes(fastify, options) {
       })
     )
 
-    // Score distribution (0-40, 41-60, 61-80, 81-100)
+    // Score distribution (0-40, 41-60, 61-80, 81-100) — scoped
     const allScores = await prisma.hasilTestPeriode.findMany({
+      where: hasilScopeWhere,
       select: { skor: true }
     })
 
@@ -125,7 +138,7 @@ export default async function adminRoutes(fastify, options) {
       'Sangat Baik (81-100)': allScores.filter(s => s.skor > 80).length
     }
 
-    // Test completion trend (last 7 days)
+    // Test completion trend (last 7 days) — scoped
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
     sevenDaysAgo.setHours(0, 0, 0, 0)
@@ -133,7 +146,8 @@ export default async function adminRoutes(fastify, options) {
     const testsByDay = await prisma.testSessionPeriode.findMany({
       where: {
         isCompleted: true,
-        endTime: { gte: sevenDaysAgo }
+        endTime: { gte: sevenDaysAgo },
+        ...userRelWhere
       },
       select: { endTime: true }
     })
@@ -154,12 +168,16 @@ export default async function adminRoutes(fastify, options) {
       }
     })
 
-    // Users per kategori
+    // Users per kategori — count scoped to admin's kepwil if applicable
     const usersPerKategori = await prisma.kategori.findMany({
       include: {
         subKategoris: {
           include: {
-            _count: { select: { users: true } }
+            _count: {
+              select: {
+                users: adminKepwilId ? { where: { kepwilId: adminKepwilId } } : true
+              }
+            }
           }
         }
       }
@@ -170,8 +188,9 @@ export default async function adminRoutes(fastify, options) {
       total: k.subKategoris.reduce((sum, sk) => sum + sk._count.users, 0)
     }))
 
-    // All users with their progress status
+    // All users with their progress status — scoped
     const allUsers = await prisma.user.findMany({
+      where: userWhere,
       include: {
         subKategori: { include: { kategori: true } },
         kepwil: { select: { id: true, nama: true } },
@@ -222,10 +241,11 @@ export default async function adminRoutes(fastify, options) {
       })
     )
 
-    // Regional Analytics
+    // Regional Analytics — for ADMIN_KEPWIL, only their own kepwil shows up
     const regionals = await prisma.user.groupBy({
       by: ['kepwilId'],
-      _count: { id: true }
+      _count: { id: true },
+      where: userWhere
     })
 
     // Get kepwil names for the IDs
