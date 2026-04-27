@@ -1,4 +1,5 @@
 import { logAudit } from '../utils/audit.js'
+import { stripHtml, validateLength } from '../utils/input-sanitizer.js'
 
 export default async function kategoriRoutes(fastify, options) {
   const { prisma } = fastify
@@ -42,11 +43,18 @@ export default async function kategoriRoutes(fastify, options) {
   fastify.post('/', {
     preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
-    const { nama, deskripsi, icon } = request.body
+    let { nama, deskripsi, icon } = request.body
 
     if (!nama) {
       return reply.status(400).send({ error: 'Nama is required' })
     }
+
+    // Sanitize (pentest finding #5)
+    nama = stripHtml(nama)
+    deskripsi = deskripsi != null ? stripHtml(deskripsi) : deskripsi
+    const fieldErr = validateLength(nama, { field: 'Nama kategori', min: 1, max: 100 })
+      || (deskripsi != null && validateLength(deskripsi, { field: 'Deskripsi', max: 500 }))
+    if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
 
     const kategori = await prisma.kategori.create({
       data: { nama, deskripsi, icon }
@@ -60,12 +68,18 @@ export default async function kategoriRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
-    const { nama, deskripsi, icon } = request.body
+    let { nama, deskripsi, icon } = request.body
 
     const existing = await prisma.kategori.findUnique({ where: { id: parseInt(id) } })
     if (!existing) {
       return reply.status(404).send({ error: 'Kategori tidak ditemukan' })
     }
+
+    if (nama != null) nama = stripHtml(nama)
+    if (deskripsi != null) deskripsi = stripHtml(deskripsi)
+    const fieldErr = (nama != null && validateLength(nama, { field: 'Nama kategori', min: 1, max: 100 }))
+      || (deskripsi != null && validateLength(deskripsi, { field: 'Deskripsi', max: 500 }))
+    if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
 
     const kategori = await prisma.kategori.update({
       where: { id: parseInt(id) },
@@ -137,11 +151,17 @@ export default async function kategoriRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
-    const { nama, deskripsi } = request.body
+    let { nama, deskripsi } = request.body
 
     if (!nama) {
       return reply.status(400).send({ error: 'Nama is required' })
     }
+
+    nama = stripHtml(nama)
+    deskripsi = deskripsi != null ? stripHtml(deskripsi) : deskripsi
+    const fieldErr = validateLength(nama, { field: 'Nama sub kategori', min: 1, max: 100 })
+      || (deskripsi != null && validateLength(deskripsi, { field: 'Deskripsi', max: 500 }))
+    if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
 
     const slug = nama.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
@@ -162,12 +182,18 @@ export default async function kategoriRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
-    const { nama, deskripsi } = request.body
+    let { nama, deskripsi } = request.body
 
     const existing = await prisma.subKategori.findUnique({ where: { id: parseInt(id) } })
     if (!existing) {
       return reply.status(404).send({ error: 'Sub kategori tidak ditemukan' })
     }
+
+    if (nama != null) nama = stripHtml(nama)
+    if (deskripsi != null) deskripsi = stripHtml(deskripsi)
+    const fieldErr = (nama != null && validateLength(nama, { field: 'Nama sub kategori', min: 1, max: 100 }))
+      || (deskripsi != null && validateLength(deskripsi, { field: 'Deskripsi', max: 500 }))
+    if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
 
     const data = { nama, deskripsi }
     // Update slug if nama changed

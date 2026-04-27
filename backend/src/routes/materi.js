@@ -1,3 +1,5 @@
+import { stripHtml, sanitizeRichText, validateLength } from '../utils/input-sanitizer.js'
+
 export default async function materiRoutes(fastify, options) {
   const { prisma } = fastify
 
@@ -357,11 +359,17 @@ export default async function materiRoutes(fastify, options) {
   fastify.post('/', {
     preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
-    const { judul, konten, videoUrl, pdfUrl, urutan, modulId } = request.body
+    let { judul, konten, videoUrl, pdfUrl, urutan, modulId } = request.body
 
     if (!judul || !konten || !modulId) {
       return reply.status(400).send({ error: 'Judul, konten, dan modulId wajib diisi' })
     }
+
+    // Sanitize: judul plain-text, konten rich-text (script/iframe/event handlers stripped)
+    judul = stripHtml(judul)
+    konten = sanitizeRichText(konten)
+    const fieldErr = validateLength(judul, { field: 'Judul', min: 1, max: 200 })
+    if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
 
     // Verify modul exists and is KUPAS_TUNTAS
     const modul = await prisma.modul.findUnique({
@@ -395,11 +403,18 @@ export default async function materiRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
-    const { judul, konten, videoUrl, pdfUrl, urutan } = request.body
+    let { judul, konten, videoUrl, pdfUrl, urutan } = request.body
 
     const existing = await prisma.materi.findUnique({ where: { id: parseInt(id) } })
     if (!existing) {
       return reply.status(404).send({ error: 'Materi tidak ditemukan' })
+    }
+
+    if (judul != null) judul = stripHtml(judul)
+    if (konten != null) konten = sanitizeRichText(konten)
+    if (judul != null) {
+      const fieldErr = validateLength(judul, { field: 'Judul', min: 1, max: 200 })
+      if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
     }
 
     const materi = await prisma.materi.update({

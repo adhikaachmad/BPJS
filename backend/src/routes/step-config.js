@@ -1,3 +1,5 @@
+import { stripHtml, validateLength } from '../utils/input-sanitizer.js'
+
 export default async function stepConfigRoutes(fastify, options) {
   const { prisma } = fastify
 
@@ -19,7 +21,7 @@ export default async function stepConfigRoutes(fastify, options) {
     preHandler: [fastify.authenticate, fastify.checkAdminRole(['SUPER_ADMIN', 'ADMIN_KP'])]
   }, async (request, reply) => {
     const { id } = request.params
-    const { nama, deskripsi, gradientFrom, gradientTo, image } = request.body
+    let { nama, deskripsi, gradientFrom, gradientTo, image } = request.body
 
     try {
       // Check if step exists
@@ -30,6 +32,13 @@ export default async function stepConfigRoutes(fastify, options) {
       if (!existing) {
         return reply.status(404).send({ error: 'Step tidak ditemukan' })
       }
+
+      // Sanitize plain-text fields (pentest finding #5)
+      if (nama != null) nama = stripHtml(nama)
+      if (deskripsi != null) deskripsi = stripHtml(deskripsi)
+      const fieldErr = (nama != null && validateLength(nama, { field: 'Nama step', min: 1, max: 100 }))
+        || (deskripsi != null && validateLength(deskripsi, { field: 'Deskripsi step', max: 500 }))
+      if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
 
       const updateData = {
         nama: nama || existing.nama,

@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { validatePasswordStrength } from '../utils/password.js'
 import { logAudit } from '../utils/audit.js'
 import { validateKepwilKcKakab } from '../utils/lokasi-validator.js'
+import { stripHtml, validateEmail, validateNpp, validateLength } from '../utils/input-sanitizer.js'
 
 // Role constants
 const ROLES = {
@@ -369,11 +370,21 @@ export default async function userRoutes(fastify, options) {
   fastify.post('/', {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
-    const { npp, nama, email, posisi, vendor, kepwilId, kcId, kakabId, password, subKategoriId } = request.body
+    let { npp, nama, email, posisi, vendor, kepwilId, kcId, kakabId, password, subKategoriId } = request.body
 
     if (!npp || !nama || !posisi || !password || !subKategoriId) {
       return reply.status(400).send({ error: 'NPP, nama, posisi, password, and subKategoriId are required' })
     }
+
+    // Sanitize text inputs (pentest finding #5 — strip HTML, enforce length).
+    npp = stripHtml(npp); nama = stripHtml(nama); posisi = stripHtml(posisi)
+    email = email ? stripHtml(email).trim() : email
+    vendor = vendor ? stripHtml(vendor) : vendor
+    const fieldErr = validateNpp(npp) || validateLength(nama, { field: 'Nama', min: 1, max: 200 })
+      || validateLength(posisi, { field: 'Posisi', min: 1, max: 100 })
+      || (vendor != null && validateLength(vendor, { field: 'Vendor', max: 200 }))
+      || validateEmail(email)
+    if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
 
     // ADMIN_KEPWIL can only create users for their own kepwil
     const adminKepwilId = getKepwilFilter(request)
@@ -428,7 +439,20 @@ export default async function userRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin]
   }, async (request, reply) => {
     const { id } = request.params
-    const { npp, nama, email, posisi, vendor, kepwilId, kcId, kakabId, password, subKategoriId } = request.body
+    let { npp, nama, email, posisi, vendor, kepwilId, kcId, kakabId, password, subKategoriId } = request.body
+
+    // Sanitize text inputs (pentest finding #5).
+    if (npp != null) npp = stripHtml(npp)
+    if (nama != null) nama = stripHtml(nama)
+    if (posisi != null) posisi = stripHtml(posisi)
+    if (email != null) email = stripHtml(email).trim()
+    if (vendor != null) vendor = stripHtml(vendor)
+    const fieldErr = (npp != null && validateNpp(npp))
+      || (nama != null && validateLength(nama, { field: 'Nama', min: 1, max: 200 }))
+      || (posisi != null && validateLength(posisi, { field: 'Posisi', min: 1, max: 100 }))
+      || (vendor != null && validateLength(vendor, { field: 'Vendor', max: 200 }))
+      || (email != null && validateEmail(email))
+    if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
 
     const existingUser = await prisma.user.findUnique({ where: { id: parseInt(id) } })
     if (!existingUser) {

@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { logAudit } from '../utils/audit.js'
 import { validatePasswordStrength } from '../utils/password.js'
 import { validateKepwilKcKakab } from '../utils/lokasi-validator.js'
+import { stripHtml, validateLength } from '../utils/input-sanitizer.js'
 
 // Role constants
 const ROLES = {
@@ -393,12 +394,19 @@ export default async function adminRoutes(fastify, options) {
   fastify.post('/create', {
     preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
-    const { username, password, nama, role, kepwilId, kcId } = request.body
+    let { username, password, nama, role, kepwilId, kcId } = request.body
     const adminRole = request.user.adminRole
 
     if (!username || !password || !nama) {
       return reply.status(400).send({ error: 'Username, password, dan nama wajib diisi' })
     }
+
+    // Sanitize text inputs (pentest finding #5)
+    username = stripHtml(username)
+    nama = stripHtml(nama)
+    const fieldErr = validateLength(username, { field: 'Username', min: 3, max: 50 })
+      || validateLength(nama, { field: 'Nama', min: 1, max: 200 })
+    if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
 
     // Validate role
     const validRoles = [ROLES.SUPER_ADMIN, ROLES.ADMIN_KP, ROLES.ADMIN_KEPWIL]
@@ -470,9 +478,16 @@ export default async function adminRoutes(fastify, options) {
     preHandler: [fastify.authenticateAdmin, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN_KP)]
   }, async (request, reply) => {
     const { id } = request.params
-    const { nama, password, role, kepwilId, kcId } = request.body
+    let { nama, password, role, kepwilId, kcId } = request.body
     const adminRole = request.user.adminRole
     const adminId = parseInt(id)
+
+    // Sanitize text inputs (pentest finding #5)
+    if (nama != null) nama = stripHtml(nama)
+    if (nama != null) {
+      const fieldErr = validateLength(nama, { field: 'Nama', min: 1, max: 200 })
+      if (fieldErr) return reply.status(fieldErr.status).send({ error: fieldErr.error })
+    }
 
     // Get target admin
     const targetAdmin = await prisma.admin.findUnique({
