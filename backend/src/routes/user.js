@@ -194,6 +194,15 @@ export default async function userRoutes(fastify, options) {
           continue
         }
 
+        // Per-row password override must also meet the policy (default
+        // password was already validated above; per-row was a gap).
+        if (userData.password) {
+          const rowPwError = validatePasswordStrength(userData.password)
+          if (rowPwError) {
+            results.failed.push({ data: userData, error: `Password row tidak valid: ${rowPwError}` })
+            continue
+          }
+        }
         const password = userData.password ? await bcrypt.hash(userData.password, 10) : hashedDefaultPassword
 
         const user = await prisma.user.create({
@@ -367,6 +376,13 @@ export default async function userRoutes(fastify, options) {
       return reply.status(409).send({ error: 'NPP already exists' })
     }
 
+    // Enforce password policy on admin-side user creation (was previously
+    // only enforced on user self-change endpoints — pentest finding 2026-04-27).
+    const pwError = validatePasswordStrength(password)
+    if (pwError) {
+      return reply.status(400).send({ error: pwError })
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10)
 
     const user = await prisma.user.create({
@@ -431,6 +447,10 @@ export default async function userRoutes(fastify, options) {
     if (subKategoriId) updateData.subKategoriId = parseInt(subKategoriId)
 
     if (password) {
+      const pwError = validatePasswordStrength(password)
+      if (pwError) {
+        return reply.status(400).send({ error: pwError })
+      }
       updateData.password = await bcrypt.hash(password, 10)
     }
 
@@ -556,6 +576,15 @@ export default async function userRoutes(fastify, options) {
           continue
         }
 
+        // Per-row password override must also meet the policy (default
+        // password was already validated above; per-row was a gap).
+        if (userData.password) {
+          const rowPwError = validatePasswordStrength(userData.password)
+          if (rowPwError) {
+            results.failed.push({ data: userData, error: `Password row tidak valid: ${rowPwError}` })
+            continue
+          }
+        }
         const password = userData.password ? await bcrypt.hash(userData.password, 10) : hashedDefaultPassword
 
         const user = await prisma.user.create({

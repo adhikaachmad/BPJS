@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { logAudit } from '../utils/audit.js'
+import { validatePasswordStrength } from '../utils/password.js'
 
 // Role constants
 const ROLES = {
@@ -399,6 +400,13 @@ export default async function adminRoutes(fastify, options) {
       return reply.status(409).send({ error: 'Username sudah digunakan' })
     }
 
+    // Enforce password policy on admin-side admin creation (was previously
+    // only enforced on user self-change endpoints — pentest finding 2026-04-27).
+    const pwError = validatePasswordStrength(password)
+    if (pwError) {
+      return reply.status(400).send({ error: pwError })
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10)
 
     const admin = await prisma.admin.create({
@@ -468,6 +476,10 @@ export default async function adminRoutes(fastify, options) {
     }
 
     if (password) {
+      const pwError = validatePasswordStrength(password)
+      if (pwError) {
+        return reply.status(400).send({ error: pwError })
+      }
       data.password = await bcrypt.hash(password, 10)
     }
 
