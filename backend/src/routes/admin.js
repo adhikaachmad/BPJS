@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { logAudit } from '../utils/audit.js'
 import { validatePasswordStrength } from '../utils/password.js'
+import { validateKepwilKcKakab } from '../utils/lokasi-validator.js'
 
 // Role constants
 const ROLES = {
@@ -407,6 +408,15 @@ export default async function adminRoutes(fastify, options) {
       return reply.status(400).send({ error: pwError })
     }
 
+    // Validate Kepwil↔KC consistency. Only enforce for ADMIN_KEPWIL roles
+    // since SUPER_ADMIN/ADMIN_KP do not have a region scope.
+    if (role === ROLES.ADMIN_KEPWIL) {
+      const lokasiErr = await validateKepwilKcKakab(prisma, { kepwilId, kcId })
+      if (lokasiErr) {
+        return reply.status(lokasiErr.status).send({ error: lokasiErr.error })
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10)
 
     const admin = await prisma.admin.create({
@@ -473,6 +483,14 @@ export default async function adminRoutes(fastify, options) {
       role,
       kepwilId: role === ROLES.ADMIN_KEPWIL ? parseInt(kepwilId) : null,
       kcId: kepwilId ? (kcId ? parseInt(kcId) : null) : null
+    }
+
+    // Validate Kepwil↔KC consistency when scope is being set (ADMIN_KEPWIL).
+    if (role === ROLES.ADMIN_KEPWIL) {
+      const lokasiErr = await validateKepwilKcKakab(prisma, { kepwilId, kcId })
+      if (lokasiErr) {
+        return reply.status(lokasiErr.status).send({ error: lokasiErr.error })
+      }
     }
 
     if (password) {

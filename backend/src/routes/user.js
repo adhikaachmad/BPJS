@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { validatePasswordStrength } from '../utils/password.js'
 import { logAudit } from '../utils/audit.js'
+import { validateKepwilKcKakab } from '../utils/lokasi-validator.js'
 
 // Role constants
 const ROLES = {
@@ -203,6 +204,17 @@ export default async function userRoutes(fastify, options) {
             continue
           }
         }
+
+        const lokasiErr = await validateKepwilKcKakab(prisma, {
+          kepwilId: userData.kepwilId,
+          kcId: userData.kcId,
+          kakabId: userData.kakabId
+        })
+        if (lokasiErr) {
+          results.failed.push({ data: userData, error: lokasiErr.error })
+          continue
+        }
+
         const password = userData.password ? await bcrypt.hash(userData.password, 10) : hashedDefaultPassword
 
         const user = await prisma.user.create({
@@ -383,6 +395,11 @@ export default async function userRoutes(fastify, options) {
       return reply.status(400).send({ error: pwError })
     }
 
+    const lokasiErr = await validateKepwilKcKakab(prisma, { kepwilId, kcId, kakabId })
+    if (lokasiErr) {
+      return reply.status(lokasiErr.status).send({ error: lokasiErr.error })
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10)
 
     const user = await prisma.user.create({
@@ -445,6 +462,20 @@ export default async function userRoutes(fastify, options) {
     if (kcId !== undefined) updateData.kcId = kcId ? parseInt(kcId) : null
     if (kakabId !== undefined) updateData.kakabId = kakabId ? parseInt(kakabId) : null
     if (subKategoriId) updateData.subKategoriId = parseInt(subKategoriId)
+
+    // Validate Kepwil↔KC↔Kakab consistency on the merged final state
+    // (existing values + overrides). Pentest finding #1 (CWE-639).
+    const finalKepwilId = 'kepwilId' in updateData ? updateData.kepwilId : existingUser.kepwilId
+    const finalKcId = 'kcId' in updateData ? updateData.kcId : existingUser.kcId
+    const finalKakabId = 'kakabId' in updateData ? updateData.kakabId : existingUser.kakabId
+    const lokasiErr = await validateKepwilKcKakab(prisma, {
+      kepwilId: finalKepwilId,
+      kcId: finalKcId,
+      kakabId: finalKakabId
+    })
+    if (lokasiErr) {
+      return reply.status(lokasiErr.status).send({ error: lokasiErr.error })
+    }
 
     if (password) {
       const pwError = validatePasswordStrength(password)
@@ -585,6 +616,18 @@ export default async function userRoutes(fastify, options) {
             continue
           }
         }
+
+        const finalKepwil = adminKepwilId ?? (userData.kepwilId ? parseInt(userData.kepwilId) : null)
+        const finalKc = adminKepwilId ? null : (userData.kcId ? parseInt(userData.kcId) : null)
+        const finalKakab = adminKepwilId ? null : (userData.kakabId ? parseInt(userData.kakabId) : null)
+        const lokasiErr = await validateKepwilKcKakab(prisma, {
+          kepwilId: finalKepwil, kcId: finalKc, kakabId: finalKakab
+        })
+        if (lokasiErr) {
+          results.failed.push({ data: userData, error: lokasiErr.error })
+          continue
+        }
+
         const password = userData.password ? await bcrypt.hash(userData.password, 10) : hashedDefaultPassword
 
         const user = await prisma.user.create({
@@ -594,9 +637,9 @@ export default async function userRoutes(fastify, options) {
             email: userData.email || null,
             posisi: userData.posisi,
             vendor: userData.vendor || null,
-            kepwilId: adminKepwilId ?? (userData.kepwilId ? parseInt(userData.kepwilId) : null),
-            kcId: adminKepwilId ? null : (userData.kcId ? parseInt(userData.kcId) : null),
-            kakabId: adminKepwilId ? null : (userData.kakabId ? parseInt(userData.kakabId) : null),
+            kepwilId: finalKepwil,
+            kcId: finalKc,
+            kakabId: finalKakab,
             password,
             subKategoriId: parseInt(userData.subKategoriId)
           }
